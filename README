@@ -1,0 +1,34 @@
+iceprop  
+---------
+
+My attempt at using meep (http://ab-initio.mit.edu/wiki/index.php/Meep) to simulate radio propagation in firn 
+It should live at http://github.com/cozzyd/iceprop 
+
+Cosmin Deaconu <cozzyd@kicp.uchicago.edu>
+
+
+Requirements (for now): 
+  meep (which requires guile and libctl. We don't use the hdf5 facilities of meep, so you can compile without that.) 
+  ROOT  (tested with ROOT 6, but ROOT 5 might work) 
+  libconfig 
+
+Usage:
+  You can either use it as a library (in e.g. a ROOT macro or your own compiled code) or with the iceprop driver macro + config files. 
+  At some point I will write some documentation :) 
+
+Units: 
+  - Meep is dimensionless, so we are free to use our own units. 
+  - Distance units are in meters. 
+  - Cylindrical coordinates are used, where the transmitter is always at r=0. Negative z is below the ice surface, positive z is above. 
+  - Time units are in ns, therefore frequency is in GHz. 
+  - Electric field units are in Volts / m  (that implies current is in units of 1 / 377 A, I think). 
+
+License: 
+  GPLv3 (see COPYING).
+
+
+  
+
+
+ 
+
