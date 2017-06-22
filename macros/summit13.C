@@ -1,4 +1,7 @@
-/* simulation of summit13 code */ 
+/* simulation of summit'13 measurements
+ *
+ *
+ * */ 
 
 
 const double ft_to_mtr = 0.3048; 

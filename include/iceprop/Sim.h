@@ -62,7 +62,7 @@ namespace iceprop
       max_depth = 200; 
       max_r = 500; 
       sky_height = 50; 
-      resolution = 5; // (20 cm resolution by default) 
+      resolution = 10; // (10 cm resolution by default) 
       pml_size = 5; 
     }
   }; 
@@ -203,6 +203,7 @@ namespace iceprop
       void draw(meep::component what=meep::Ez, ScalarType typ = Real) const; 
 
       const std::vector<TimeDomainMeasurement> & getMeasurements() const  { return measurements; } 
+
       const std::vector<GlobalMaximum> & getMaximums() const  { return maxima; } 
 
       /** Low-level meep accessors. May need to hide from ROOT 5. */ 

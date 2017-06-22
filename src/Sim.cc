@@ -41,9 +41,13 @@ static iceprop::SimGeometry * the_geom;
 static double eps(const meep::vec & v) 
 {
 
+  double val = 0;
   // check if in sky 
-  if (v.z() > the_geom->max_depth) return 1; 
-  else return the_firn->getDensity(v.z()-the_geom->max_depth); 
+  if (v.z() > the_geom->max_depth) val =1.; 
+  else val = the_firn->eps(v.z()-the_geom->max_depth); 
+//  printf("%g %g %g\n", v.z(), v.r(), val); 
+  return val; 
+
 }
 
 __attribute__((pure)) 
@@ -102,6 +106,7 @@ static TH2 * make_hist(const char * name, const char * title, const iceprop::Sim
  
   h->GetXaxis()->SetTitle("r (m)"); 
   h->GetYaxis()->SetTitle("z (m)"); 
+  h->SetStats(0); 
 
   return h; 
 
@@ -232,7 +237,10 @@ void iceprop::Sim::addStepOutput(StepOutput out)
   if (out.format & (O_ROOT | O_PNG | O_PDF)) 
   {
     out.h = make_hist(out.output_prefix, out.output_prefix, geom, out.double_precision); 
-    delete_list.push_back(out.h); 
+    if (!out.format & (O_ROOT))
+    {
+      delete_list.push_back(out.h); 
+    }
   }
 
   if (out.format & O_ROOT) 
@@ -264,7 +272,7 @@ struct store_calculation
     {
       for (int i = 0; i < nbinsx; i++)
       {
-        v[j*nbinsx+i] = f->get_field(what, meep::ivec(i,j)); 
+        v[j*nbinsx+i] = f->get_field(what, meep::veccyl(i*dx,j*dx)); 
       }
     }
   }
@@ -272,14 +280,22 @@ struct store_calculation
 
   void updateHist(TH2 * h,  iceprop::ScalarType type)
   {
+    double max = 0; 
+    double min = 0; 
     for (int j = 0; j < nbinsy; j++)
     {
       for (int i = 0; i < nbinsx; i++ )
       {
         double v = get_scalar_val(type, get(i,j)); 
+        if (v > max) max = v; 
+        if (v < min) min = v; 
+//        printf("%d %d %g\n",i,j,v);
         h->SetBinContent(i+1,j+1,v); 
       }
     }
+    double scale = TMath::Max(fabs(max),fabs(min));
+    h->SetMaximum(scale); 
+    h->SetMinimum(-scale); 
   }
 
   void updateMax( TH2 * m, TH2 * t, iceprop::ScalarType type, double now) 
@@ -301,6 +317,7 @@ struct store_calculation
 
   int nbinsx; 
   int nbinsy; 
+  double dx; 
 
   std::complex<double> get(int i, int j) 
   {
@@ -311,6 +328,7 @@ struct store_calculation
   {
     nbinsx = g->max_r * g->resolution; 
     nbinsy = (g->max_depth+g->sky_height) * g->resolution;  
+    dx = 1./g->resolution;
     v.resize(nbinsx*nbinsy); 
   }
 
@@ -331,6 +349,11 @@ void iceprop::Sim::run(double time)
   double meep_time = time * ns_to_meep;  
   double t0 = f->time(); 
 
+  /* this is just the line for the surface in output plots */ 
+  TGraph gsurf(2); 
+  gsurf.SetPoint(0, 0,0); 
+  gsurf.SetPoint(1, geom->max_r,0); 
+ 
   int i = 0; 
 
   /* bookkeeping has a lot of double letters, which is good, because we have a lot of doubles! */ 
@@ -368,8 +391,9 @@ void iceprop::Sim::run(double time)
         if (outputs[o].format & O_HDF5 ) 
         {
           TString path; 
-          path.Form("%s/%s.%d.h5", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
-          meep::h5file h5(path.Data()); 
+          path.Form("%s/%s-%d.h5", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
+          meep::h5file h5(path.Data(),meep::h5file::WRITE); 
+
           f->output_hdf5( get_output_prefix(outputs[o].what, outputs[o].type),
                          1, &(outputs[o].what), &meep_scalar_function, (void*) &(outputs[o].type),
                          gv.surroundings(), 
@@ -395,13 +419,16 @@ void iceprop::Sim::run(double time)
      *  or use an intermediate O_HDF5 file even if not outputting to one. 
      *
      **/ 
-    for (size_t calc = 0;  calc < need_to_calculate.size(); calc) 
+    for (size_t calc = 0;  calc < need_to_calculate.size(); calc++) 
     {
       meep::component what = need_to_calculate[calc]; 
+
+      printf("Need to calculate %s at time %g\n", get_meep_component_name(what), getCurrentTime()); 
 
       /* make sure we have a store for the solution */ 
       if (! store[what])
       {
+         printf("Making store for %s\n",get_meep_component_name(what)); 
          store[what] = new store_calculation(geom); 
       }
 
@@ -419,6 +446,14 @@ void iceprop::Sim::run(double time)
     /* Output the non-O_HDF5 stuff. Remember that index should be one minus what we have */ 
     for (size_t o = 0; o < outputs.size(); o++) 
     {
+      //not this step 
+      if ( ! ((i - outputs[o].skip_offset > 0 )  && ( (i - outputs[o].skip_offset) % outputs[o].skip_factor) == 0)) 
+        continue; 
+
+      // only hdf5
+      if ( ! (outputs[o].format & (O_PDF | O_PNG | O_ROOT)))
+        continue; 
+
       //fill the histogram 
       store[outputs[o].what]->updateHist(outputs[o].h, outputs[o].type); 
 
@@ -429,14 +464,24 @@ void iceprop::Sim::run(double time)
       }
 
       //change the title to what it is and when it is 
-      TString titl; 
-      titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o].what,outputs[o].type), 
-                                                getCurrentTime(), i, outputs[o].index-1); 
 
       if (outputs[o].format & (O_PNG | O_PDF) ) 
       {
+
+        TString titl; 
+        titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o].what,outputs[o].type), 
+                                                  getCurrentTime(), i, outputs[o].index-1); 
+        outputs[o].h->SetTitle(titl.Data()); 
         outputs[o].c->cd(); 
+
+
+
         outputs[o].h->Draw("colz"); 
+
+        /** add a line for the surface. We can do something smarter later probably */ 
+        gsurf.Draw("lsame"); 
+
+
         TString path;  
 
         if (outputs[o].format & O_PNG) 
@@ -492,6 +537,8 @@ TGraph * iceprop::TimeDomainMeasurement::makeGraph(ScalarType type) const
   TString title; 
   title.Form("%s (%s) at r=%g m z=%g m", get_meep_component_name(what), get_scalar_name(type), r,z);  
   g->SetTitle(title.Data()); 
+  title.Form("g_%s_%g_%g", get_output_prefix(what,type),r,z);
+  g->SetName(title.Data()); 
   title.Form("%s (%s)", get_meep_component_name(what), get_scalar_name(type)); 
   g->GetYaxis()->SetTitle(title.Data()); 
   g->GetYaxis()->SetTitle("t (ns)"); 
@@ -500,6 +547,7 @@ TGraph * iceprop::TimeDomainMeasurement::makeGraph(ScalarType type) const
 
   return g; 
 }
+
 
 
 TH2 * iceprop::Sim::makeHist(meep::component what, ScalarType type, TH2 * h, bool double_precision) const 

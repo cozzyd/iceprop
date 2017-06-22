@@ -33,11 +33,11 @@
 
 static iceprop::ArthernFirn arthern;
 
-const double k = 0.845e-3; 
+const double k = 0.845*1e-3; 
 
 double iceprop::Firn::getIndexOfRefraction(double z) const 
 {
-  return 1 + k * getDensity(z); 
+  return 1. + k * getDensity(z); 
 }
 
 double iceprop::Firn::eps(double z) const 
