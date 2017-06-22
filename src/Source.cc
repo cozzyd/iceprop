@@ -28,9 +28,12 @@
 #include "Units.h" 
 
 
-iceprop::GaussianPulseSource::GaussianPulseSource(double r, double z, double f, double w, meep::comonent c) 
-  : r(r),z(z), src( f * GHz_to_meep, w * GHz_to_meep), component(c) 
+iceprop::GaussianPulseSource::GaussianPulseSource(double r_, double z_, double f, double w, meep::component c) 
+  :  src( f * GHz_to_meep, w * GHz_to_meep)
 {
+  r = r_; 
+  z = z_; 
+  component = c; 
   //that's it for now
 } 
 

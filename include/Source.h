@@ -54,11 +54,11 @@ namespace iceprop
 
 
  /* dumb wrapper around meep gaussian pulse... does take care of the frequency conversion from our units though */ 
- class GaussianPulseSource 
+ class GaussianPulseSource  : public Source
  {
    public: 
      GaussianPulseSource(double r, double z, double f=0.5, double w=0.2, meep::component c = meep::Ez); 
-     virtual const meep::source & source() const { return src }; 
+     virtual const meep::src_time & source() const { return src; } 
    private: 
      meep::gaussian_src_time src; 
  };

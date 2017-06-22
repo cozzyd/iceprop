@@ -26,18 +26,27 @@
 #include "Units.h" 
 #include "Firn.h" 
 #include "Source.h" 
+#include <map>
 
+#include "TCanvas.h" 
+#include "TFile.h" 
+#include "TTree.h" 
+#include "TH2.h" 
+#include "TGraph.h" 
+#include "TROOT.h" 
 
 
 
 /** necessary for epsilon with no void */
-static Firn * the_firn; 
-static double eps(meep::vec & v) 
+static iceprop::Firn * the_firn; 
+static iceprop::SimGeometry * the_geom;
+
+static double eps(const meep::vec & v) 
 {
 
   // check if in sky 
-  if (p.z() > max_depth) return 1; 
-  else return the_firn->getDensity(p.z()-max_depth); 
+  if (v.z() > the_geom->max_depth) return 1; 
+  else return the_firn->getDensity(v.z()-the_geom->max_depth); 
 }
 
 __attribute__((pure)) 
@@ -88,11 +97,11 @@ static TH2 * make_hist(const char * name, const char * title, const iceprop::Sim
 {
   TH2 * h = 
   double_precision ? 
-     new TH2D(name, title, geom->max_r*resolution, 0, geom->max_r, 
-                    (geom->max_depth+geom->sky_height)*resolution, -geom->max_depth, geom->sky_height) 
+      (TH2*) new TH2D(name, title, geom->max_r*geom->resolution, 0, geom->max_r, 
+                    (geom->max_depth+geom->sky_height)*geom->resolution, -geom->max_depth, geom->sky_height) 
      :
-     new TH2F(name, title, geom->max_r*resolution, 0, geom->max_r, 
-                   (geom->max_depth+geom->sky_height)*resolution, -geom->max_depth, geom->sky_height); 
+      (TH2*) new TH2F(name, title, geom->max_r*geom->resolution, 0, geom->max_r, 
+                   (geom->max_depth+geom->sky_height)*geom->resolution, -geom->max_depth, geom->sky_height); 
  
   h->GetXaxis()->SetTitle("r (m)"); 
   h->GetYaxis()->SetTitle("z (m)"); 
@@ -113,19 +122,21 @@ iceprop::Sim::~Sim()
 }
 
 iceprop::Sim::Sim(const Firn * firn, const SimGeometry * geom, const Source * source) 
-  firn(firn), geom(geom), gv(meep::volcyl(geom->max_r, geom->max_depth + geom->sky_height, resolution))
+:  firn(firn), geom(geom), gv(meep::volcyl(geom->max_r, geom->max_depth + geom->sky_height, geom->resolution))
 {
 
   //evil thread-unsafe code here , will probably need to fx
-  s = new meep::structure(gv, eps, mpl(geom->pml_size)); 
-  f = new meep::fields(&s); 
+  the_firn = (Firn*)firn; 
+  the_geom = (SimGeometry*)geom; 
+  s = new meep::structure(gv, eps, meep::pml(geom->pml_size)); 
+  f = new meep::fields(s); 
   if (source)  addSource(source); 
 }
 
 
 void iceprop::Sim::addSource(const Source * s) 
 {
-  f->add_point_source(s->getComponent(), s->getSource(), meep::veccyl(s->getR(), max_depth + s->GetZ())); 
+  f->add_point_source(s->getComponent(), s->getSource(), meep::veccyl(s->getR(), geom->max_depth + s->getZ())); 
 }
 
 
@@ -135,17 +146,17 @@ void iceprop::Sim::addTimeDomainMeasurement(meep::component what, double r, doub
   m.r = r; 
   m.z = z; 
   m.what = what; 
-  m.skip = skip_factor; 
-  if (m.skip < 1) m.skip = 1; 
+  m.nskip = skip_factor; 
+  if (m.nskip < 1) m.nskip = 1; 
   measurements.push_back(m); 
 }
 
 void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
 {
 
-  MaximumTracker mt; 
-  mt.what = what; 
-  mt.type = type; 
+  GlobalMaximum gm; 
+  gm.what = what; 
+  gm.type = type; 
 
   TString title; 
   title.Form("Maximum %s (%s)", 
@@ -154,15 +165,15 @@ void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
   name.Form("max_%s_%s)", 
               get_meep_component_name(what), get_scalar_name(type)); 
 
-  mt.max = make_hist(name.Data(), title.Data(), geom); 
+  gm.max = make_hist(name.Data(), title.Data(), geom); 
 
   title.Form("Maximum Time %s (%s)", get_meep_component_name(what), get_scalar_name(type)); 
   name.Form("max_t_%s_%s)", get_meep_component_name(what), get_scalar_name(type)); 
 
-  mt.tmax = make_hist(name.Data(), title.Data(), geom); 
+  gm.tmax = make_hist(name.Data(), title.Data(), geom); 
 
 
-  maxima.push_back(mt); 
+  maxima.push_back(gm); 
 }
 
 
@@ -178,7 +189,7 @@ static const char * get_output_prefix(meep::component what, iceprop::ScalarType 
       return default_output_prefixes[pair];
 
     char * str; 
-    asprintf(&str,"%s_%s", get_meep_component_name(out.what), get_scalar_name(out.type)); 
+    asprintf(&str,"%s_%s", get_meep_component_name(what), get_scalar_name(type)); 
 
     default_output_prefixes[pair] = str; 
 
@@ -193,43 +204,43 @@ void iceprop::Sim::addStepOutput(StepOutput out)
 
 
   /* initialize stuff */ 
-  if (!out.cw) out.cw = geom->max_r*resolution * 1.1; 
-  if (!out.ch) out.ch =(geom->max_depth + geom->sky_height)*resolution * 1.1; 
+  if (!out.cw) out.cw = geom->max_r*geom->resolution * 1.1; 
+  if (!out.ch) out.ch =(geom->max_depth + geom->sky_height)*geom->resolution * 1.1; 
 
 
   if (!out.output_prefix)
   {
-    out.output_prefix = default_output_prefixes(out.what, out.type); 
+    out.output_prefix = get_output_prefix(out.what, out.type); 
   }
 
 
-  if (!out.c && ( out.fmt & (PNG | PDF) )
+  if (!out.c && ( out.format & (O_PNG | O_PDF)))
   {
     TString cname;
-    cname.Form("c%d_%s", count_the_canvases++, output_prefix); 
+    cname.Form("c%d_%s", count_the_canvases++, out.output_prefix); 
     out.c = new TCanvas(cname.Data(), cname.Data(), out.cw, out.ch); 
     delete_list.push_back(out.c); 
   }
 
-  if (!out.outf && (out.fmt & ROOT)) 
+  if (!out.outf && (out.format & O_ROOT)) 
   {
     TString path;
     path.Form("%s/%s.root", out.out_dir, out.output_prefix); 
     out.outf = new TFile(path.Data(),"RECREATE"); //TODO: think if this what we want... 
     delete_list.push_back(out.outf); 
-    out.outf.cd(); 
+    out.outf->cd(); 
   }
 
   /* store a histogram to avoid constant reallocation */ 
-  if (out.fmt & (ROOT | PNG | PDF)) 
+  if (out.format & (O_ROOT | O_PNG | O_PDF)) 
   {
-    out.h = make_hist(output_prefix, output_prefix, geom, out.double_precision); 
+    out.h = make_hist(out.output_prefix, out.output_prefix, geom, out.double_precision); 
     delete_list.push_back(out.h); 
   }
 
-  if (out.fmt & ROOT) 
+  if (out.format & O_ROOT) 
   {
-    out.t = new TTree(output_prefix,output_prefix);  
+    out.t = new TTree(out.output_prefix,out.output_prefix);  
     out.t->Branch("hist",out.h);   
     gROOT->cd(); 
   }
@@ -239,24 +250,18 @@ void iceprop::Sim::addStepOutput(StepOutput out)
 
 }
 
-double Sim::getCurrentTime() const 
+double iceprop::Sim::getCurrentTime() const 
 {
   return f->time() * meep_to_ns; 
 }
 
 
-struct store_calcuation
+struct store_calculation
 {
-  store_calculation(const Sim::SimGeometry * g) 
-  {
-    nbinsx = g->max_r * g->resolution; 
-    nbinsy = (g->max_depth+g->sky_height) * g->resolution;  
-    v.resize(nbinsx*binsy); 
-  }
 
   std::vector<std::complex<double> > v; 
 
-  void fill( meep::component what, const meep::field  * f) 
+  void fill( meep::component what, const meep::fields  * f) 
   {
     for (int j = 0; j < nbinsy; j++)
     {
@@ -299,23 +304,32 @@ struct store_calcuation
 
   int nbinsx; 
   int nbinsy; 
+
   std::complex<double> get(int i, int j) 
   {
     return v[ j * nbinsx + i]; 
   }
 
+  store_calculation(const iceprop::SimGeometry * g) 
+  {
+    nbinsx = g->max_r * g->resolution; 
+    nbinsy = (g->max_depth+g->sky_height) * g->resolution;  
+    v.resize(nbinsx*nbinsy); 
+  }
+
+
 }; 
 
 
 
-static double meep_scalar_function( std::complex<double> * vals, const meep::vec & loc, void * type) 
+static double meep_scalar_function( const std::complex<double> * vals, const meep::vec & loc, void * type) 
 {
   (void) loc; 
-  return get_scalar_val( (iceprop::ScalarType) *type, *vals); 
+  return get_scalar_val( *((iceprop::ScalarType*)type), *vals); 
 }
 
 
-void Sim::run(double time) 
+void iceprop::Sim::run(double time) 
 {
   double meep_time = time * ns_to_meep;  
   double t0 = f->time(); 
@@ -325,7 +339,7 @@ void Sim::run(double time)
   /* bookkeeping has a lot of double letters, which is good, because we have a lot of doubles! */ 
   std::vector<store_calculation * > store(meep::NUM_FIELD_COMPONENTS,0);
   std::vector<meep::component> always_need_to_calculate;
-  std::vector<bool> am_i_always_always_calculated(meep::NUM_FIELD_COMPONENTS,false); 
+  std::vector<bool> am_i_always_calculated(meep::NUM_FIELD_COMPONENTS,false); 
   always_need_to_calculate.reserve(maxima.size()); 
 
 
@@ -335,7 +349,7 @@ void Sim::run(double time)
     if (!am_i_always_calculated[maxima[m].what])
     {
       always_need_to_calculate.push_back(maxima[m].what); 
-      am_i_always_always_calculated[maxima[m].what] = true; 
+      am_i_always_calculated[maxima[m].what] = true; 
     }
   }
 
@@ -343,7 +357,7 @@ void Sim::run(double time)
   {
     double now = getCurrentTime(); 
     std::vector<meep::component> need_to_calculate = always_need_to_calculate; 
-    std::vector<bool> am_i_calculated = am_i_always_always_calculated; 
+    std::vector<bool> am_i_calculated = am_i_always_calculated; 
 
     /** figure out what additional things we need to fully calculate at this step */ 
     for (int o = 0; o < outputs.size(); o++)
@@ -354,20 +368,21 @@ void Sim::run(double time)
 
         /* Use meep's internals for hdf5 since I think it's smarter than we are and I don't want to
          * figure this stuff out. */
-        if (outputs[o].fmt & HDF5 ) 
+        if (outputs[o].format & O_HDF5 ) 
         {
           TString path; 
           path.Form("%s/%s.%d.h5", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
-          meep::h5file(path.Data()); 
+          meep::h5file h5(path.Data()); 
           f->output_hdf5( get_output_prefix(outputs[o].what, outputs[o].type),
-                         1, & outputs[o].what, meep_scalar_function, (void*) outputs[o].type,
+                         1, &(outputs[o].what), &meep_scalar_function, (void*) &(outputs[o].type),
+                         gv.surroundings(), 
                          &h5, false, !outputs[o].double_precision);
         }
 
 
-        //we only need to calculate it if we need it for something other than HDF5 
+        //we only need to calculate it if we need it for something other than O_HDF5 
 
-        if ( (outputs[o].fmt & ( PNG | PDF | ROOT )) &&  ! am_i_calculated[outputs[o].what])
+        if ( (outputs[o].format & ( O_PNG | O_PDF | O_ROOT )) &&  ! am_i_calculated[outputs[o].what])
         {
           need_to_calculate.push_back(outputs[o].what); 
           am_i_calculated[outputs[o].what] = true; 
@@ -380,7 +395,7 @@ void Sim::run(double time)
      *  This currently doesn't do anything smart in the MPI case 
      *  (and honestly, all the ROOT stuff probably doesn't work in the MPI case anyway)
      *  If this becomes a problem I'll need to figure out how to use all that loop over chunks business
-     *  or use an intermediate HDF5 file even if not outputting to one. 
+     *  or use an intermediate O_HDF5 file even if not outputting to one. 
      *
      **/ 
     for (size_t calc = 0;  calc < need_to_calculate.size(); calc) 
@@ -388,12 +403,12 @@ void Sim::run(double time)
       meep::component what = need_to_calculate[calc]; 
 
       /* make sure we have a store for the solution */ 
-      if (! store[what]])
+      if (! store[what])
       {
          store[what] = new store_calculation(geom); 
       }
 
-      store[what].fill(what,f) ; 
+      store[what]->fill(what,f) ; 
     }
 
     /* Fill in maxima. This probably could be done while filling in the store for a bit of extra efficiency.
@@ -401,40 +416,40 @@ void Sim::run(double time)
          
     for (size_t m = 0; m < maxima.size(); m++) 
     {
-      store[maxima[m].what].updateMax(maxima[m]->max, maxima[m]->tmax, maxima[m].type,now); 
+      store[maxima[m].what]->updateMax(maxima[m].max, maxima[m].tmax, maxima[m].type,now); 
     }
 
-    /* Output the non-HDF5 stuff. Remember that index should be one minus what we have */ 
+    /* Output the non-O_HDF5 stuff. Remember that index should be one minus what we have */ 
     for (size_t o = 0; o < outputs.size(); o++) 
     {
       //fill the histogram 
-      store[outputs[o].what].updateHist(outputs[o].h, outputs[o].type); 
+      store[outputs[o].what]->updateHist(outputs[o].h, outputs[o].type); 
 
       //change the title to what it is and when it is 
       TString titl; 
       titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o].what,outputs[o].type), 
                                                 getCurrentTime(), i, outputs[o].index-1); 
 
-      if (outputs[o].fmt & (PNG | PDF) ) 
+      if (outputs[o].format & (O_PNG | O_PDF) ) 
       {
         outputs[o].c->cd(); 
         outputs[o].h->Draw("colz"); 
         TString path;  
 
-        if (outputs[o].fmt & PNG) 
+        if (outputs[o].format & O_PNG) 
         {
           path.Form("%s/%s.%d.png", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
           outputs[o].c->SaveAs(path); 
         }
 
-        if (outputs[o].fmt & PDF) 
+        if (outputs[o].format & O_PDF) 
         {
           path.Form("%s/%s.%d.pdf", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
           outputs[o].c->SaveAs(path); 
         }
       }
 
-      if (outputs[o].fmt & ROOT)  
+      if (outputs[o].format & O_ROOT)  
       {
         // this is cargo culting at this point for me, so I don't know if this is necessary or not 
         outputs[o].outf->cd(); 
@@ -450,18 +465,18 @@ void Sim::run(double time)
     {
        if (i % measurements[m].nskip == 0)
        {
-         measurements[m].t = now; 
-         measurements[m].val = f->get_field( measurements[m].what, meep::veccyl( measurements[m].r, measurements[m].z + geom->max_depth)); 
+         measurements[m].t.push_back(now); 
+         measurements[m].val.push_back(f->get_field( measurements[m].what, meep::veccyl( measurements[m].r, measurements[m].z + geom->max_depth))); 
        }
     }
 
-    f.step(); 
+    f->step(); 
     i++; 
   }
 } 
 
 
-TGraph * iceprop::TimeDomainMeasurement::makeGraph(ScalarType type) 
+TGraph * iceprop::TimeDomainMeasurement::makeGraph(ScalarType type) const
 {
   TGraph * g = new TGraph(t.size()); 
 
@@ -472,12 +487,12 @@ TGraph * iceprop::TimeDomainMeasurement::makeGraph(ScalarType type)
   }
 
   TString title; 
-  title.Form("%s (%s) at r=%g m z=%g m", get_meep_component_name(what), get_scalar_val(type), r,z);  
-  g->SetTitle(title.GetData()); 
-  title.Form("%s (%s)", get_meep_component_name(what), get_scalar_val(type)); 
-  g->GetYaxis()->SetTitle(title.GetData()); 
+  title.Form("%s (%s) at r=%g m z=%g m", get_meep_component_name(what), get_scalar_name(type), r,z);  
+  g->SetTitle(title.Data()); 
+  title.Form("%s (%s)", get_meep_component_name(what), get_scalar_name(type)); 
+  g->GetYaxis()->SetTitle(title.Data()); 
   g->GetYaxis()->SetTitle("t (ns)"); 
-  g->SetBit(TGraph::kIsSortedX) 
+  g->SetBit(TGraph::kIsSortedX) ; 
   g->SetBit(TGraph::kNotEditable); 
 
   return g; 
@@ -489,13 +504,13 @@ TH2 * iceprop::Sim::makeHist(meep::component what, ScalarType type, TH2 * h, boo
   if (!h)
   {
     TString titl;
-    titl.Form("%s t=%g", get_output_prefix(what,type), getCurrentTime()) 
+    titl.Form("%s t=%g", get_output_prefix(what,type), getCurrentTime()) ; 
     h = make_hist(get_output_prefix(what,type), titl.Data(), geom, double_precision); 
   }
 
   store_calculation s(geom); 
   s.fill(what,f); 
-  s.fillHist(h,type); 
+  s.updateHist(h,type); 
   return h; 
 }
 
