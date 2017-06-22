@@ -425,6 +425,12 @@ void iceprop::Sim::run(double time)
       //fill the histogram 
       store[outputs[o].what]->updateHist(outputs[o].h, outputs[o].type); 
 
+      if (outputs[o].output_scale)
+      {
+        outputs[o].h->SetMaximum(outputs[o].output_scale); 
+        outputs[o].h->SetMinimum(-outputs[o].output_scale); 
+      }
+
       //change the title to what it is and when it is 
       TString titl; 
       titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o].what,outputs[o].type), 
