@@ -23,7 +23,7 @@
  *************************************************************************************/ 
 
 
-#include "Firn.h" 
+#include "iceprop/Firn.h" 
 #include <cmath>
 #include <stdio.h> 
 #include <string.h> 

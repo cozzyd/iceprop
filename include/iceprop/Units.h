@@ -1,9 +1,9 @@
- /************************************************************************************
- *
- * Source.cc 
- * Implements field sources
- * Cosmin Deaconu <cozzyd@kicp.uchicago.edu> 
+/**************************************************************************************
+ * Units.h 
  * 
+ * Constants to convert between our unit system and Meep's internal unit system.  
+ *
+ * Cosmin Deaconu <cozzyd@kicp.uchicago.edu> 
  *
  * This file is part of iceprop. 
  *
@@ -23,18 +23,16 @@
  *************************************************************************************/ 
 
 
+#ifndef ICEPROP_UNITS_H
+#define ICEPROP_UNITS_H
 
-#include "iceprop/Source.h" 
-#include "iceprop/Units.h" 
 
-
-iceprop::GaussianPulseSource::GaussianPulseSource(double r_, double z_, double f, double w, meep::component c) 
-  :  src( f * GHz_to_meep, w * GHz_to_meep)
+namespace iceprop 
 {
-  r = r_; 
-  z = z_; 
-  component = c; 
-  //that's it for now
-} 
+  //TODO: I'm not so good at algebra so we should fix this 
+  static const double meep_to_ns = 3.3354095; 
+  static const double ns_to_meep = 1./meep_to_ns; 
+  static const double GHz_to_meep = meep_to_ns; 
+}
 
-
+#endif

@@ -12,9 +12,11 @@ BINDIR=bin
 
 OBJS := $(addprefix $(BUILDDIR)/, Firn.o Sim.o Source.o icepropDict.o )
 
-BINARIES := $(addprefix $(BINDIR)/, iceprop )
-INCLUDES := $(addprefix $(INCLUDEDIR)/, $(shell ls $(INCLUDEDIR)))
-LINKLIBNAME=firnprop
+BINARIES = $(addprefix $(BINDIR)/, iceprop )
+INCLUDES = $(addprefix $(INCLUDEDIR)/, iceprop.h iceprop/Sim.h iceprop/Firn.h iceprop/Source.h iceprop/Units.h)
+
+LINKLIBNAME=iceprop
+
 LIBNAME = $(LIBDIR)/lib$(LINKLIBNAME).so 
 
 all: $(LIBNAME) $(BINARIES) 

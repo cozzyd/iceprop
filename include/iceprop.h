@@ -1,7 +1,8 @@
-/**************************************************************************************
- * Units.h 
- * 
- * Constants to convert between our unit system and Meep's internal unit system.  
+/***************************************************************************
+ * iceprop.h 
+ *
+ *
+ * Header file that includes all the other header files. 
  *
  * Cosmin Deaconu <cozzyd@kicp.uchicago.edu> 
  *
@@ -20,15 +21,15 @@
  * You should have received a copy of the GNU General Public License
  * along with iceprop.  If not, see <http://www.gnu.org/licenses/>.
  *
- *************************************************************************************/ 
+ *************************************************************************/ 
 
 
+#ifndef _iceprop_h_
+#define _iceprop_h_
 
+#include "iceprop/Sim.h" 
+#include "iceprop/Firn.h" 
+#include "iceprop/Units.h" 
+#include "iceprop/Source.h" 
 
-namespace iceprop 
-{
-  //TODO: I'm not so good at algebra so we should fix this 
-  static const double meep_to_ns = 3.3354095; 
-  static const double ns_to_meep = 1./meep_to_ns; 
-  static const double GHz_to_meep = meep_to_ns; 
-}
+#endif

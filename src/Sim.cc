@@ -22,10 +22,7 @@
  *
  *************************************************************************************/ 
 
-#include "Sim.h" 
-#include "Units.h" 
-#include "Firn.h" 
-#include "Source.h" 
+#include "iceprop.h"
 #include <map>
 
 #include "TCanvas.h" 
