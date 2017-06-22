@@ -31,17 +31,25 @@ namespace iceprop
 
   /** The iceprop source is a wrapper around the meep source. 
    * Right now that seems very silly... but maybe in the future it'll be interesting. 
+   *
+   * TODO: 
+   * Right now it only goes in one component, but in general we should be able to have a weighted
+   * component list for like a neutrino or something. 
+   *
    */ 
+
   class Source
   {
 
     public: 
-      virtual const meep::source * source() const = 0; 
-
+      virtual const meep::src_time & getSource() const = 0; 
       double getR() const { return r; } 
       double getZ() const { return z; } 
+      meep::component getComponent() const { return component; } 
+
     protected: 
       double r, z; 
+      meep::component component;
   }; 
 
 
@@ -49,7 +57,7 @@ namespace iceprop
  class GaussianPulseSource 
  {
    public: 
-     GaussianPulseSource(double r, double z, double f=0.5, double w=0.2); 
+     GaussianPulseSource(double r, double z, double f=0.5, double w=0.2, meep::component c = meep::Ez); 
      virtual const meep::source & source() const { return src }; 
    private: 
      meep::gaussian_src_time src; 

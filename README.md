@@ -1,5 +1,6 @@
 #iceprop  
 ---
+
 Cosmin Deaconu <cozzyd@kicp.uchicago.edu>
 
 My attempt at using meep (http://ab-initio.mit.edu/wiki/index.php/Meep) to
@@ -38,6 +39,7 @@ meep directly. The meep writers are much better coders than I am.
   - Output to png / pdf through ROOT (undoubtedly slower than creating an HDF5 file and then converting to png/pdf later). 
 
 ---
+
 ### Notes/Caveats: 
 
   - meep supports MPI, including parallel output to hdf5 files. iceprop does
@@ -59,15 +61,21 @@ meep directly. The meep writers are much better coders than I am.
   - Because it's cylindrically symmetric, if you put 
 
 ---
-### ToDos
+
+### ToDos / Planned features
   - Useful documentation 
   - Flux measurements
   - More firn models , including hoar frost layers, real density measurements, whatever. 
   - More source models. Would be great to incorporate a realistic neutrino model! 
   - Driver program with config file 
-  - python bindings? (maybe already works with pyROOT?) 
-  - Parallelize better (see Notes/Caveats). 
+  - Python bindings? (maybe already works with pyROOT?) 
+  - Parallelize better (see Notes/Caveats), perhaps via an intermediate hdf5 file. 
+  - Noise simulation 
+  - Geometries other than cylindrically symmetric 
+  - Make output prettier.
+
 ---
+
 ### License: 
   GPLv3 (see COPYING).
 

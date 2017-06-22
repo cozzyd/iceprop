@@ -68,7 +68,6 @@ namespace iceprop
       virtual ~Firn() { ; } 
   }; 
 
-
   /** Firn with a ``double exponential model'' */
   class DoubleExponentialFirn : public Firn 
   {

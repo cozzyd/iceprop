@@ -1,6 +1,6 @@
 #someday I'll probably convert this to cmake... but not today 
 
-CFLAGS=`pkg-config --cflags meep` `root-config --cflags` -g -O2 
+CXXFLAGS=`pkg-config --cflags meep` `root-config --cflags` -g -O2 
 LDFLAGS=`pkg-config --libs meep` `root-config --libs` 
 
 .PHONY: clean all 
@@ -10,7 +10,7 @@ BUILDDIR=build
 INCLUDEDIR=include
 BINDIR=bin
 
-OBJS := $(addprefix $(BUILDDIR)/, Firn.o Sim.o Source.o icepropDict.o 
+OBJS := $(addprefix $(BUILDDIR)/, Firn.o Sim.o Source.o icepropDict.o )
 
 BINARIES := $(addprefix $(BINDIR)/, iceprop )
 INCLUDES := $(addprefix $(INCLUDEDIR)/, $(shell ls $(INCLUDEDIR)))
