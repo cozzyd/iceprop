@@ -26,6 +26,7 @@
 
 #include "TGraph.h" 
 
+class TSpline3; 
 namespace iceprop
 {
 
@@ -69,7 +70,7 @@ namespace iceprop
   }; 
 
   /** Firn with a ``double exponential model'' */
-  class DoubleExponentialFirn : public Firn 
+  class DoubleExponentialDensityFirn : public Firn 
   {
     public: 
       DoubleExponentialDensityFirn (double shallow_length_scale, double deep_length_scale, double surface_density, double critical_density, double deep_density = 917); 
@@ -123,7 +124,7 @@ namespace iceprop
 
     private: 
       TGraph g;
-      TSpline3 *spl; 
+      mutable TSpline3 *spl; 
       InterpolationType ipl;  
   }; 
 }

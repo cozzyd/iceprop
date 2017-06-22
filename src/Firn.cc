@@ -27,15 +27,17 @@
 #include <cmath>
 #include <stdio.h> 
 #include <string.h> 
+#include "TAxis.h" 
+#include "TSpline.h" 
 
 
-static ArthernFirn arthern;
+static iceprop::ArthernFirn arthern;
 
 const double k = 0.845e-3; 
 
 double iceprop::Firn::getIndexOfRefraction(double z) const 
 {
-  return 1 + k * density(z); 
+  return 1 + k * getDensity(z); 
 }
 
 double iceprop::Firn::eps(double z) const 
@@ -62,7 +64,7 @@ iceprop::Firn * iceprop::Firn::getFirn(const char * key)
 
   else if (strstr(key,"DensityTableFirn"))
   {
-    const char file[513]; 
+    char file[513]; 
     sscanf(key,"DensityTableFirn %512s", file); 
     return new DensityTableFirn(file); 
   }
@@ -84,14 +86,14 @@ iceprop::DoubleExponentialDensityFirn::DoubleExponentialDensityFirn(double shall
   rho_surf = surface_density; 
   rho_c = critical_density; 
   rho_deep = deep_density; 
-  z_crit = -1* scale_shallow * log((rho_deep - rho_surf) / (rho_deep - rho_c)); 
+  z_c= -1* scale_shallow * log((rho_deep - rho_surf) / (rho_deep - rho_c)); 
 }
 
 double iceprop::DoubleExponentialDensityFirn::getDensity(double z) const 
 {
   if ( z > 0) return 0; 
 
-  if (z < z_crit) return (rho_deep - (rho_deep - rho_c) * exp((z-z_crit)/scale_deep)); 
+  if (z < z_c) return (rho_deep - (rho_deep - rho_c) * exp((z-z_c)/scale_deep)); 
   else return (rho_deep - (rho_deep - rho_surf)* exp(z/scale_shallow)); 
 }
 
@@ -105,27 +107,28 @@ iceprop::ArthernFirn::ArthernFirn()
 
 
 iceprop::DensityTableFirn::DensityTableFirn(int Npts, const double * z, const double * rho) 
-  : g(Npts,z,rho); 
+  : g(Npts,z,rho) 
 {
-  g.SetBit(TGraph::isSortedX); 
-  g.GetXaxis()->SetTitle("z (m)") 
-  g.GetYaxis()->SetTitle("#rho (kg/m^3)") 
+  g.SetBit(TGraph::kIsSortedX); 
+  g.GetXaxis()->SetTitle("z (m)") ; 
+  g.GetYaxis()->SetTitle("#rho (kg/m^3)") ; 
   ipl = LINEAR; 
   spl = 0;
 }
 
 iceprop::DensityTableFirn::DensityTableFirn(const char * f) 
-  : g(f); 
+  : g(f) 
 {
-  g.SetBit(TGraph::isSortedX); 
-  g.GetXaxis()->SetTitle("z (m)") 
-  g.GetYaxis()->SetTitle("#rho (kg/m^3)") 
+  g.SetBit(TGraph::kIsSortedX); 
+  g.GetXaxis()->SetTitle("z (m)") ; 
+  g.GetYaxis()->SetTitle("#rho (kg/m^3)") ; 
   ipl = LINEAR; 
   spl = 0;
 }
 
 static int spline_counter = 0; 
-iceprop::DensityTableFirn::getDensity(double z) 
+
+double iceprop::DensityTableFirn::getDensity(double z) const
 {
 
   if (ipl == SPLINE3) 
@@ -133,7 +136,7 @@ iceprop::DensityTableFirn::getDensity(double z)
     if (!spl) 
     {
       TString str; str.Form("firnspline%d",spline_counter++); 
-      spl = new TSpline(str.Data(), g.GetX(), g.GetY(), g.GetN()); 
+      spl = new TSpline3(str.Data(), g.GetX(), g.GetY(), g.GetN()); 
     }
 
     return spl->Eval(z); 
