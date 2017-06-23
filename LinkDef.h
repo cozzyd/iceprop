@@ -14,8 +14,9 @@
 
 //Source.h 
 #pragma link C++ class iceprop::Source; 
-#pragma link C++ class iceprop::GaussianPulseSourc; 
-
+#pragma link C++ class iceprop::GaussianPulseSource; 
+#pragma link C++ class iceprop::GraphSource; 
+#pragma link C++ class iceprop::ButterworthSource; 
 
 //Sim.h 
 

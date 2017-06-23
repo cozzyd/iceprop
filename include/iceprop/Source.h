@@ -25,6 +25,11 @@
 #define ICEPROP_SOURCE_H
 
 #include "meep.hpp" 
+class TGraph; 
+namespace FFTtools
+{
+
+}
 
 namespace iceprop 
 {
@@ -46,6 +51,7 @@ namespace iceprop
       double getR() const { return r; } 
       double getZ() const { return z; } 
       meep::component getComponent() const { return component; } 
+      virtual ~Source() {; } 
 
     protected: 
       double r, z; 
@@ -62,6 +68,36 @@ namespace iceprop
    private: 
      meep::gaussian_src_time src; 
  };
+
+
+ /* This uses a graph as the model. It takes the hilbert transform for the imaginary part. I'm having trouble getting it to do something
+  * reasonale, I don't think it likes discontinuities :( */ 
+ class GraphSource  : public Source
+ {
+   public: 
+     GraphSource(double r, double z, const TGraph * g, meep::component c = meep::Ez); 
+     virtual const meep::src_time & getSource() const { return src; } 
+     virtual ~GraphSource(); 
+     TGraph * getReal() { return g[0]; } 
+     TGraph * getImag() { return g[1]; } 
+
+   private:
+     meep::custom_src_time src; 
+     TGraph *g[2]; 
+ }; 
+
+ /* Attempt to use the impulse response of a digital butterworth filter a source. Not working out so great for me ... */ 
+ class ButterworthSource : public Source
+ {
+   public: 
+     ButterworthSource(double r, double z, double fmin = 0.2, double fmax = 0.7,
+                        meep::component c = meep::Ez, int order = 2, int oversample = 16, int max_length = 1000);
+     virtual const meep::src_time & getSource() const { return graph_source->getSource(); } 
+     GraphSource * getGraphSource() { return graph_source; } 
+     virtual ~ButterworthSource(); 
+   private:
+     GraphSource * graph_source; 
+ }; 
 
 } 
 
