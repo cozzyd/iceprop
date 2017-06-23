@@ -13,6 +13,7 @@ meep directly. The meep writers are much better coders than I am.
 ### Requirements (for now): 
   - meep (which requires guile, hdf5 and libctl.) 
   - ROOT  (tested with ROOT 6, but ROOT 5 might work) 
+  - libRootFftwWrapper (https://github.com/nichol77/libRootFftwWrapper) 
 
 ---
 ### Usage:
@@ -73,6 +74,7 @@ meep directly. The meep writers are much better coders than I am.
   - Noise simulation 
   - Geometries other than cylindrically symmetric 
   - Make output prettier.
+  - Make results automatically output 
 
 ---
 

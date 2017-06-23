@@ -1,7 +1,7 @@
 #someday I'll probably convert this to cmake... but not today 
 
 CXXFLAGS=`pkg-config --cflags meep` `root-config --cflags` -g -O2  -fPIC
-LDFLAGS=`pkg-config --libs meep` `root-config --libs` 
+LDFLAGS=`pkg-config --libs meep` `root-config --libs` -lRootFftwWrapper
 
 .PHONY: clean all 
 
