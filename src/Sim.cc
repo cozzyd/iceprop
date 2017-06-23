@@ -117,6 +117,20 @@ iceprop::Sim::~Sim()
 {
   delete f; 
   delete s; 
+
+  /* make sure we write the trees */ 
+
+  for (size_t o = 0; o < outputs.size(); o++)
+  {
+    if (outputs[o].t) 
+    {
+      outputs[o].outf->cd(); 
+      outputs[o].t->Write(); 
+    }
+  }
+ 
+
+
   for (size_t i =0; i < delete_list.size(); i++) 
   {
     if (delete_list[i]) delete delete_list[i]; 
@@ -541,7 +555,7 @@ TGraph * iceprop::TimeDomainMeasurement::makeGraph(ScalarType type) const
   g->SetName(title.Data()); 
   title.Form("%s (%s)", get_meep_component_name(what), get_scalar_name(type)); 
   g->GetYaxis()->SetTitle(title.Data()); 
-  g->GetYaxis()->SetTitle("t (ns)"); 
+  g->GetXaxis()->SetTitle("t (ns)"); 
   g->SetBit(TGraph::kIsSortedX) ; 
   g->SetBit(TGraph::kNotEditable); 
 
