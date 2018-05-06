@@ -27,10 +27,10 @@
 #define ICEPROP_SIM_H
 
 #include <vector> 
+#include "TGraph.h" 
 #include <meep.hpp> 
 
 class TFile; 
-class TGraph; 
 class TTree; 
 class TObject; 
 class TH2; 
@@ -53,7 +53,9 @@ namespace iceprop
     int max_r; /// The maximum radius (in m) of the simulation (for now, integer)
     int sky_height; /// The amount of sky to simulate (in m)  (for now, integer)
     int  resolution; ///The ``resolution" (number of elements per m) 
+    int output_skip_factor; ///record every nth bin in the output (to avoid having to calculate the field everywhere) 
 
+    double courant_factor; /// The courant factor controls the scaling between delta_t and delta_x. 
     double pml_size; ///The size of the "perfectly matched layer" "free space" boundary condition. See Meep documentation. 
 
     //these are the defaults
@@ -64,6 +66,8 @@ namespace iceprop
       sky_height = 50; 
       resolution = 10; // (10 cm resolution by default) 
       pml_size = 5; 
+      output_skip_factor = 1; 
+      courant_factor = 0.25; 
     }
   }; 
 
@@ -100,6 +104,15 @@ namespace iceprop
     ScalarType type; 
     TH2 * max; 
     TH2 * tmax; 
+  }; 
+
+  /* This is the output of the result of trackMaximum. Not intended to be filled in by the user. */ 
+  struct GlobalIntegral
+  {
+    meep::component what; 
+    ScalarType type; 
+    TH2 * integ; 
+    TH2 * tfirst; 
   }; 
 
 
@@ -185,6 +198,7 @@ namespace iceprop
 
       /* Enables tracking the maximum of this quantity and the time at which the maximum occurs. */ 
       void trackGlobalMaximum(meep::component what, ScalarType type = Mag); 
+      void trackGlobalIntegral(meep::component what, ScalarType type = Mag); 
       
       void addStepOutput(StepOutput output);  
       
@@ -205,6 +219,7 @@ namespace iceprop
       const std::vector<TimeDomainMeasurement> & getMeasurements() const  { return measurements; } 
 
       const std::vector<GlobalMaximum> & getMaximums() const  { return maxima; } 
+      const std::vector<GlobalIntegral> & getIntegrals() const  { return integrals; } 
 
       /** Low-level meep accessors. May need to hide from ROOT 5. */ 
       meep::fields * getFields() { return f; } 
@@ -220,8 +235,10 @@ namespace iceprop
 
       std::vector<TimeDomainMeasurement> measurements; 
       std::vector<GlobalMaximum> maxima; 
+      std::vector<GlobalIntegral> integrals; 
       std::vector<StepOutput> outputs; 
       std::vector<TObject *> delete_list; 
+      TGraph gsurf; 
 
       /** meeps stuff. May need to hide from ROOT 5 at some point... */ 
       meep::grid_volume gv; 

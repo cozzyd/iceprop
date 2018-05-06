@@ -29,7 +29,7 @@
 #include "TFile.h" 
 #include "TTree.h" 
 #include "TH2.h" 
-#include "TGraph.h" 
+#include "TMutex.h" 
 #include "TROOT.h" 
 
 
@@ -98,11 +98,11 @@ static TH2 * make_hist(const char * name, const char * title, const iceprop::Sim
 {
   TH2 * h = 
   double_precision ? 
-      (TH2*) new TH2D(name, title, geom->max_r*geom->resolution, 0, geom->max_r, 
-                    (geom->max_depth+geom->sky_height)*geom->resolution, -geom->max_depth, geom->sky_height) 
+      (TH2*) new TH2D(name, title, geom->max_r*geom->resolution/geom->output_skip_factor, 0, geom->max_r, 
+                    (geom->max_depth+geom->sky_height)*geom->resolution/geom->output_skip_factor, -geom->max_depth, geom->sky_height) 
      :
-      (TH2*) new TH2F(name, title, geom->max_r*geom->resolution, 0, geom->max_r, 
-                   (geom->max_depth+geom->sky_height)*geom->resolution, -geom->max_depth, geom->sky_height); 
+      (TH2*) new TH2F(name, title, geom->max_r*geom->resolution/geom->output_skip_factor, 0, geom->max_r, 
+                   (geom->max_depth+geom->sky_height)*geom->resolution/geom->output_skip_factor, -geom->max_depth, geom->sky_height); 
  
   h->GetXaxis()->SetTitle("r (m)"); 
   h->GetYaxis()->SetTitle("z (m)"); 
@@ -137,16 +137,23 @@ iceprop::Sim::~Sim()
   }
 }
 
+
 iceprop::Sim::Sim(const Firn * firn, const SimGeometry * geom, const Source * source) 
-:  firn(firn), geom(geom), gv(meep::volcyl(geom->max_r, geom->max_depth + geom->sky_height, geom->resolution))
+:  firn(firn), geom(geom), gsurf(2), gv(meep::volcyl(geom->max_r, geom->max_depth + geom->sky_height, geom->resolution))
 {
 
+  static TMutex construction_lock; 
+  TLockGuard l (&construction_lock); 
   //evil thread-unsafe code here , will probably need to fx
   the_firn = (Firn*)firn; 
   the_geom = (SimGeometry*)geom; 
-  s = new meep::structure(gv, eps, meep::pml(geom->pml_size)); 
+  s = new meep::structure(gv, eps, meep::pml(geom->pml_size), 
+                          meep::identity(), 0,geom->courant_factor); 
   f = new meep::fields(s); 
   if (source)  addSource(source); 
+  gsurf.SetPoint(0, 0,0); 
+  gsurf.SetLineWidth(4); 
+  gsurf.SetPoint(1, geom->max_r,0); 
 }
 
 
@@ -167,6 +174,33 @@ void iceprop::Sim::addTimeDomainMeasurement(meep::component what, double r, doub
   measurements.push_back(m); 
 }
 
+void iceprop::Sim::trackGlobalIntegral(meep::component what, ScalarType type )
+{
+
+  GlobalIntegral gm; 
+  gm.what = what; 
+  gm.type = type; 
+
+  TString title; 
+  title.Form("Integral %s (%s)", 
+              get_meep_component_name(what), get_scalar_name(type)); 
+  TString name; 
+  name.Form("integ_%s_%s", 
+              get_meep_component_name(what), get_scalar_name(type)); 
+
+  gm.integ = make_hist(name.Data(), title.Data(), geom); 
+
+  title.Form("First Time %s (%s)", get_meep_component_name(what), get_scalar_name(type)); 
+  name.Form("first_%s_%s", get_meep_component_name(what), get_scalar_name(type)); 
+
+  gm.tfirst = make_hist(name.Data(), title.Data(), geom); 
+
+
+  integrals.push_back(gm); 
+}
+
+
+
 void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
 {
 
@@ -178,13 +212,13 @@ void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
   title.Form("Maximum %s (%s)", 
               get_meep_component_name(what), get_scalar_name(type)); 
   TString name; 
-  name.Form("max_%s_%s)", 
+  name.Form("max_%s_%s", 
               get_meep_component_name(what), get_scalar_name(type)); 
 
   gm.max = make_hist(name.Data(), title.Data(), geom); 
 
   title.Form("Maximum Time %s (%s)", get_meep_component_name(what), get_scalar_name(type)); 
-  name.Form("max_t_%s_%s)", get_meep_component_name(what), get_scalar_name(type)); 
+  name.Form("max_t_%s_%s", get_meep_component_name(what), get_scalar_name(type)); 
 
   gm.tmax = make_hist(name.Data(), title.Data(), geom); 
 
@@ -308,8 +342,8 @@ struct store_calculation
       }
     }
     double scale = TMath::Max(fabs(max),fabs(min));
-    h->SetMaximum(scale); 
-    h->SetMinimum(-scale); 
+    h->SetMaximum(scale*1.1); 
+    h->SetMinimum(-scale*1.1); 
   }
 
   void updateMax( TH2 * m, TH2 * t, iceprop::ScalarType type, double now) 
@@ -327,6 +361,28 @@ struct store_calculation
       }
     }
   }
+  void updateInteg( TH2 * m, TH2 * t, iceprop::ScalarType type, double now) 
+  {
+    for (int j = 0; j < nbinsy; j++)
+    {
+      for (int i = 0; i < nbinsx; i++ )
+      {
+        double v = get_scalar_val(type, get(i,j)); 
+
+        double content = m->GetBinContent(i+1,j+1); 
+        if (v && !content)
+        {
+          t->SetBinContent(i+1,j+1,now); 
+        }
+
+        m->SetBinContent(i+1,j+1,content+v); 
+
+      }
+    }
+  }
+
+
+ 
 
 
   int nbinsx; 
@@ -340,9 +396,10 @@ struct store_calculation
 
   store_calculation(const iceprop::SimGeometry * g) 
   {
-    nbinsx = g->max_r * g->resolution; 
-    nbinsy = (g->max_depth+g->sky_height) * g->resolution;  
-    dx = 1./g->resolution;
+    int nskip = g->output_skip_factor; 
+    nbinsx = (g->max_r * g->resolution) / nskip; 
+    nbinsy = ((g->max_depth+g->sky_height) * g->resolution) / nskip;  
+    dx = 1./g->resolution * nskip;
     v.resize(nbinsx*nbinsy); 
   }
 
@@ -358,16 +415,15 @@ static double meep_scalar_function( const std::complex<double> * vals, const mee
 }
 
 
+
+
 void iceprop::Sim::run(double time) 
 {
   double meep_time = time * ns_to_meep;  
   double t0 = f->time(); 
 
   /* this is just the line for the surface in output plots */ 
-  TGraph gsurf(2); 
-  gsurf.SetPoint(0, 0,0); 
-  gsurf.SetPoint(1, geom->max_r,0); 
- 
+
   int i = 0; 
 
   /* bookkeeping has a lot of double letters, which is good, because we have a lot of doubles! */ 
@@ -377,7 +433,7 @@ void iceprop::Sim::run(double time)
   always_need_to_calculate.reserve(maxima.size()); 
 
 
-  /* If we look for maxima, we always have to calculate the entire thing everywhere. It blows */ 
+  /* if we look for maxima, we always have to calculate the entire thing everywhere. it blows */ 
   for (size_t m = 0; m < maxima.size(); m++)
   {
     if (!am_i_always_calculated[maxima[m].what])
@@ -386,6 +442,18 @@ void iceprop::Sim::run(double time)
       am_i_always_calculated[maxima[m].what] = true; 
     }
   }
+
+  /* ditto for integral */ 
+  for (size_t m = 0; m < integrals.size(); m++)
+  {
+    if (!am_i_always_calculated[integrals[m].what])
+    {
+      always_need_to_calculate.push_back(integrals[m].what); 
+      am_i_always_calculated[integrals[m].what] = true; 
+    }
+  }
+
+
 
   while (f->time() < t0 + meep_time) 
   {
@@ -456,6 +524,13 @@ void iceprop::Sim::run(double time)
     {
       store[maxima[m].what]->updateMax(maxima[m].max, maxima[m].tmax, maxima[m].type,now); 
     }
+
+    for (size_t m = 0; m < integrals.size(); m++) 
+    {
+      store[integrals[m].what]->updateInteg(integrals[m].integ, integrals[m].tfirst, maxima[m].type,now); 
+    }
+
+
 
     /* Output the non-O_HDF5 stuff. Remember that index should be one minus what we have */ 
     for (size_t o = 0; o < outputs.size(); o++) 
