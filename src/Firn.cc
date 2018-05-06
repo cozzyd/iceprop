@@ -170,9 +170,11 @@ double iceprop::PerturbedFirn::getDensity(double z) const
   double rho = base.getDensity(z); 
   for (size_t i = 0; i < zs.size(); i++) 
   {
-    if (fabs(zs[i]-z) < 3 * sigmas[i])
+    if (fabs(zs[i]-z) < 5 * sigmas[i])
     {
+//      printf("rho(%g), %g", z, rho); 
       rho += As[i] * TMath::Gaus(z, zs[i], sigmas[i]); 
+//      printf("-> %g",rho); 
     }
   }
 
