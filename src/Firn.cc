@@ -29,6 +29,7 @@
 #include <string.h> 
 #include "TAxis.h" 
 #include "TSpline.h" 
+#include "TMath.h" 
 
 
 static iceprop::ArthernFirn arthern;
@@ -87,6 +88,7 @@ iceprop::DoubleExponentialDensityFirn::DoubleExponentialDensityFirn(double shall
   rho_c = critical_density; 
   rho_deep = deep_density; 
   z_c= -1* scale_shallow * log((rho_deep - rho_surf) / (rho_deep - rho_c)); 
+//  printf("z_c=%g\n",z_c); 
 }
 
 double iceprop::DoubleExponentialDensityFirn::getDensity(double z) const 
@@ -157,4 +159,23 @@ iceprop::DensityTableFirn::~DensityTableFirn()
 
 
 
+iceprop::PerturbedFirn::PerturbedFirn(const Firn & b, int n, const double * z, const double * A, const double * sigma)
+  : base(b), zs(z,z+n), As(A,A+n), sigmas(sigma,sigma+n)
+{
+}
+
+double iceprop::PerturbedFirn::getDensity(double z) const 
+{
+
+  double rho = base.getDensity(z); 
+  for (size_t i = 0; i < zs.size(); i++) 
+  {
+    if (fabs(zs[i]-z) < 3 * sigmas[i])
+    {
+      rho += As[i] * TMath::Gaus(z, zs[i], sigmas[i]); 
+    }
+  }
+
+  return rho; 
+}
 

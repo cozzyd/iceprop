@@ -8,6 +8,7 @@
 //Firn.h
 #pragma link C++ namespace iceprop; 
 #pragma link C++ class iceprop::Firn; 
+#pragma link C++ class iceprop::PerturbedFirn; 
 #pragma link C++ class iceprop::DoubleExponentialDensityFirn; 
 #pragma link C++ class iceprop::ArthernFirn; 
 #pragma link C++ class iceprop::DensityTableFirn; 

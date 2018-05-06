@@ -25,6 +25,7 @@
 #define ICEPROP_FIRN_H
 
 #include "TGraph.h" 
+#include <vector> 
 
 class TSpline3; 
 namespace iceprop
@@ -92,6 +93,24 @@ namespace iceprop
       ArthernFirn(); 
   }; 
 
+
+  /** This takes a firn model and adds gaussian to it */ 
+  class PerturbedFirn : public Firn
+  {
+    public: 
+      /** Perturbed firn with fixed density perturbations */ 
+      PerturbedFirn(const Firn & base, int nperturbs, const double * zs, const double * A, const double * sigmas); 
+      virtual double getDensity(double z) const; 
+
+    private: 
+
+      const Firn& base; 
+      std::vector<double> zs; 
+      std::vector<double> As; 
+      std::vector<double> sigmas; 
+
+
+  }; 
 
   /** Firn based on interpolating a density table */ 
   class DensityTableFirn : public Firn 
