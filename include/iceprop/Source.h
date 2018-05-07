@@ -70,12 +70,12 @@ namespace iceprop
  };
 
 
- /* This uses a graph as the model. It takes the hilbert transform for the imaginary part. I'm having trouble getting it to do something
+ /* This uses a graph as the model. It either takes the hilbert transform for the imaginary part if it's zero.... I'm having trouble getting it to do something
   * reasonale, I don't think it likes discontinuities :( */ 
  class GraphSource  : public Source
  {
    public: 
-     GraphSource(double r, double z, const TGraph * g, meep::component c = meep::Ez); 
+     GraphSource(double r, double z, const TGraph * greal, TGraph * gimag = 0, meep::component c = meep::Ez); 
      virtual const meep::src_time & getSource() const { return src; } 
      virtual ~GraphSource(); 
      TGraph * getReal() { return g[0]; } 
@@ -90,8 +90,8 @@ namespace iceprop
  class ButterworthSource : public Source
  {
    public: 
-     ButterworthSource(double r, double z, double fmin = 0.2, double fmax = 0.7,
-                        meep::component c = meep::Ez, int order = 2, int oversample = 16, int max_length = 1000);
+     ButterworthSource(double r, double z, double fc = 0.35, double fwidth = 0.2, double fnyq = 1, 
+                        meep::component c = meep::Ez, int order = 4, int oversample = 100, int max_length = 500);
      virtual const meep::src_time & getSource() const { return graph_source->getSource(); } 
      GraphSource * getGraphSource() { return graph_source; } 
      virtual ~ButterworthSource(); 

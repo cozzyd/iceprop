@@ -46,6 +46,7 @@ static std::complex<double> graph_eval_meep(double tmeep, void * data)
 {
   double t = tmeep * iceprop::meep_to_ns; 
   TGraph ** g = (TGraph**) data; 
+  if ( t > g[0]->GetX()[g[0]->GetN()-1] ) return std::complex<double>(0,0); 
   return std::complex<double>(g[0]->Eval(t), g[1]->Eval(t)); 
 
 }
@@ -56,16 +57,16 @@ iceprop::GraphSource::~GraphSource()
   delete g[1]; 
 }
 
-iceprop::GraphSource::GraphSource(double r_, double z_, const TGraph*  g_ , meep::component c)
+iceprop::GraphSource::GraphSource(double r_, double z_, const TGraph*  gr, TGraph * gi, meep::component c)
 : src(graph_eval_meep, (void*) &(g[0]) )
 {
-  src.is_integrated= false; 
+  src.is_integrated= true; 
   r = r_; 
   z = z_; 
   component = c; 
-  g[0] = new TGraph(g_->GetN(), g_->GetX(), g_->GetY()); 
+  g[0] = new TGraph(gr->GetN(), gr->GetX(), gr->GetY()); 
   g[0]->SetBit(TGraph::kIsSortedX); 
-  g[1] = FFTtools::getHilbertTransform(g[0]); 
+  g[1] = gi ? new TGraph(gi->GetN(), gi->GetX(), gi->GetY()) :  FFTtools::getHilbertTransform(g[0]); 
   g[0]->SetBit(TGraph::kIsSortedX); 
 }
 
@@ -74,15 +75,24 @@ iceprop::ButterworthSource::~ButterworthSource()
   delete graph_source; 
 }
 
-iceprop::ButterworthSource::ButterworthSource(double r_, double z_, double fmin, double fmax, meep::component c, int order, int os, int max_length) 
+iceprop::ButterworthSource::ButterworthSource(double r_, double z_, double fc, double w, double fnyq, meep::component c, int order, int os, int max_length) 
 {
   r = r_; 
   z = z_; 
   component = c; 
-  FFTtools::ButterworthFilter filt(FFTtools::BANDPASS, order, (fmin/fmax + 1) / (2.*os), (1-fmin/fmax)/ (2.*os)); 
-  TGraph * g = filt.impulseGraph(max_length, 1./(2*fmax*os), os/fmax); 
-  graph_source = new GraphSource(r,z,g,component); 
+  FFTtools::ButterworthFilter filt(FFTtools::BANDPASS, order, fc/fnyq, w/fnyq); 
+  TGraph * g = filt.impulseGraph(max_length, 0.5*fnyq,2*fnyq/(fc-w)); 
+  TGraph * gos = FFTtools::getInterpolatedGraphFreqDom(g,1./os); 
+  TGraph * gos_i =FFTtools::getHilbertTransform(gos); 
+  long max= TMath::LocMax(gos->GetN(), gos->GetY()); 
+  for (int i = 0; i < gos->GetN(); i++) 
+  {
+    gos->GetY()[i] *= TMath::Gaus(gos->GetX()[i],gos->GetX()[max], fnyq/(fc-w)); 
+    gos_i->GetY()[i] *= TMath::Gaus(gos->GetX()[i],gos->GetX()[max], fnyq/(fc-w)); 
+  }
+  graph_source = new GraphSource(r,z,gos,gos_i,component) ; 
   delete g; 
+  delete gos; 
 }
 
 
