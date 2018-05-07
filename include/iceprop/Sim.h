@@ -67,7 +67,7 @@ namespace iceprop
       resolution = 10; // (10 cm resolution by default) 
       pml_size = 5; 
       output_skip_factor = 1; 
-      courant_factor = 0.25; 
+      courant_factor = 0.5; 
     }
   }; 
 
@@ -199,6 +199,8 @@ namespace iceprop
       /* Enables tracking the maximum of this quantity and the time at which the maximum occurs. */ 
       void trackGlobalMaximum(meep::component what, ScalarType type = Mag); 
       void trackGlobalIntegral(meep::component what, ScalarType type = Mag); 
+
+      int  saveIntermediateGlobals(const char * file, int skip_factor = 100) ; 
       
       void addStepOutput(StepOutput output);  
       
@@ -244,6 +246,10 @@ namespace iceprop
       meep::grid_volume gv; 
       meep::fields *f; 
       meep::structure *s; 
+
+      TFile * intermediate_globals_file; 
+      TTree * intermediate_globals_tree; 
+      int intermediate_globals_interval; 
 
   }; 
 }

@@ -130,6 +130,13 @@ iceprop::Sim::~Sim()
   }
  
 
+  if (intermediate_globals_file) 
+  {
+    intermediate_globals_file->cd(); 
+    intermediate_globals_tree->Write(); 
+    delete intermediate_globals_file; 
+  }
+
 
   for (size_t i =0; i < delete_list.size(); i++) 
   {
@@ -154,6 +161,40 @@ iceprop::Sim::Sim(const Firn * firn, const SimGeometry * geom, const Source * so
   gsurf.SetPoint(0, 0,0); 
   gsurf.SetLineWidth(4); 
   gsurf.SetPoint(1, geom->max_r,0); 
+  intermediate_globals_file = 0; 
+  intermediate_globals_tree = 0; 
+  intermediate_globals_interval = 100; 
+}
+
+
+int iceprop::Sim::saveIntermediateGlobals(const char * file, int skip_factor)
+{
+  if (intermediate_globals_file) 
+  {
+    fprintf(stderr,"Already saving intermediate globals to %s\n", intermediate_globals_file->GetName()); 
+    return 1; 
+  }
+
+  intermediate_globals_file = new TFile(file,"RECREATE"); 
+  intermediate_globals_tree = new TTree("globals","globals"); 
+  intermediate_globals_tree->SetAutoSave(10); 
+  gROOT->cd(); 
+
+  for (size_t i = 0; i < maxima.size(); i++)
+  {
+
+    intermediate_globals_tree->Branch(maxima[i].max->GetName(), &maxima[i].max); 
+    intermediate_globals_tree->Branch(maxima[i].tmax->GetName(), &maxima[i].tmax); 
+  }
+
+  for (size_t i = 0; i < integrals.size(); i++)
+  {
+
+    intermediate_globals_tree->Branch(integrals[i].integ->GetName(), &integrals[i].integ); 
+    intermediate_globals_tree->Branch(integrals[i].tfirst->GetName(), &integrals[i].tfirst); 
+  }
+
+  return 0; 
 }
 
 
@@ -195,6 +236,11 @@ void iceprop::Sim::trackGlobalIntegral(meep::component what, ScalarType type )
 
   gm.tfirst = make_hist(name.Data(), title.Data(), geom); 
 
+  if (intermediate_globals_tree) 
+  {
+    intermediate_globals_tree->Branch(gm.integ->GetName(), &gm.integ); 
+    intermediate_globals_tree->Branch(gm.tfirst->GetName(), &gm.tfirst); 
+  }
 
   integrals.push_back(gm); 
 }
@@ -221,6 +267,13 @@ void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
   name.Form("max_t_%s_%s", get_meep_component_name(what), get_scalar_name(type)); 
 
   gm.tmax = make_hist(name.Data(), title.Data(), geom); 
+
+  if (intermediate_globals_tree) 
+  {
+    intermediate_globals_tree->Branch(gm.max->GetName(), &gm.max); 
+    intermediate_globals_tree->Branch(gm.tmax->GetName(), &gm.tmax); 
+  }
+
 
 
   maxima.push_back(gm); 
@@ -433,6 +486,7 @@ void iceprop::Sim::run(double time)
   always_need_to_calculate.reserve(maxima.size()); 
 
 
+
   /* if we look for maxima, we always have to calculate the entire thing everywhere. it blows */ 
   for (size_t m = 0; m < maxima.size(); m++)
   {
@@ -531,6 +585,10 @@ void iceprop::Sim::run(double time)
     }
 
 
+    if (intermediate_globals_tree && i % intermediate_globals_interval == 0) 
+    {
+      intermediate_globals_tree->Fill(); 
+    }
 
     /* Output the non-O_HDF5 stuff. Remember that index should be one minus what we have */ 
     for (size_t o = 0; o < outputs.size(); o++) 
@@ -660,7 +718,6 @@ void  iceprop::Sim::draw(meep::component what, ScalarType typ ) const
   h->DrawCopy("colz"); 
   delete h;
 }
-
 
 
 
