@@ -235,14 +235,14 @@ void iceprop::Sim::trackGlobalIntegral(meep::component what, ScalarType type )
   name.Form("first_%s_%s", get_meep_component_name(what), get_scalar_name(type)); 
 
   gm.tfirst = make_hist(name.Data(), title.Data(), geom); 
+  integrals.push_back(gm); 
 
   if (intermediate_globals_tree) 
   {
-    intermediate_globals_tree->Branch(gm.integ->GetName(), &gm.integ); 
-    intermediate_globals_tree->Branch(gm.tfirst->GetName(), &gm.tfirst); 
+    intermediate_globals_tree->Branch(gm.integ->GetName(), &integrals[integrals.size()-1].integ); 
+    intermediate_globals_tree->Branch(gm.tfirst->GetName(), &integrals[integrals.size()-1].tfirst); 
   }
 
-  integrals.push_back(gm); 
 }
 
 
@@ -268,15 +268,15 @@ void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
 
   gm.tmax = make_hist(name.Data(), title.Data(), geom); 
 
+  maxima.push_back(gm); 
   if (intermediate_globals_tree) 
   {
-    intermediate_globals_tree->Branch(gm.max->GetName(), &gm.max); 
-    intermediate_globals_tree->Branch(gm.tmax->GetName(), &gm.tmax); 
+    intermediate_globals_tree->Branch(gm.max->GetName(), &maxima[maxima.size()-1].max); 
+    intermediate_globals_tree->Branch(gm.tmax->GetName(), &maxima[maxima.size()-1].tmax); 
   }
 
 
 
-  maxima.push_back(gm); 
 }
 
 
@@ -585,9 +585,11 @@ void iceprop::Sim::run(double time)
     }
 
 
-    if (intermediate_globals_tree && i % intermediate_globals_interval == 0) 
+    if (intermediate_globals_tree && (i % intermediate_globals_interval == 0))
     {
+      intermediate_globals_file->cd(); 
       intermediate_globals_tree->Fill(); 
+      gROOT->cd(); 
     }
 
     /* Output the non-O_HDF5 stuff. Remember that index should be one minus what we have */ 
@@ -611,15 +613,20 @@ void iceprop::Sim::run(double time)
       }
 
       //change the title to what it is and when it is 
-
-      if (outputs[o].format & (O_PNG | O_PDF) ) 
+      if (outputs[o].format & (O_PNG | O_PDF | O_ROOT) ) 
       {
-
         TString titl; 
         titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o].what,outputs[o].type), 
                                                   getCurrentTime(), i, outputs[o].index-1); 
+      
         outputs[o].h->SetTitle(titl.Data()); 
-        outputs[o].c->cd(); 
+
+      }
+ 
+      if (outputs[o].format & (O_PNG | O_PDF ) ) 
+      {
+
+       outputs[o].c->cd(); 
 
 
 
