@@ -9,7 +9,7 @@ const double receiver_depth = -ft_to_mtr;
 
 
 
-void summit13(int depth_in_ft = 200, int firn = 0, double f = 0.35, double w = 0.35, bool movie = true) 
+void summit13(int depth_in_ft = 1, int firn = 0, double f = 0.35, double w = 0.15, bool movie = true) 
 {
 
   /* define and make the output dir */ 
@@ -21,40 +21,79 @@ void summit13(int depth_in_ft = 200, int firn = 0, double f = 0.35, double w = 0
   iceprop::Firn * frn = 0;
 
   if (firn == 0) frn = &arthern; 
-  if (firn == 1 || firn == 2) 
+  if (abs(firn) == 1) 
   {
 
     double z = -3; 
-    double A = firn == 1 ? 100 : -100; 
+    double A = firn >0 ? 100 : -100; 
     double sigma = 0.2; 
     frn = new iceprop::PerturbedFirn(arthern, 1,&z,&A,&sigma); 
   }
+  if (abs(firn) == 2) 
+  {
+    double zs[] = {-2,-4}; 
+    double As[] = {50,50}; 
+
+    if (firn < 0)
+    {
+      for (int i = 0; i < sizeof(As)/sizeof(*As); i++) As[i] = -As[i]; 
+    }
+
+    double sigmas[] = {0.2,0.2}; 
+    frn = new iceprop::PerturbedFirn(arthern, 2,zs,As,sigmas); 
+  }
+
+  if (abs(firn) == 3) 
+  {
+    double zs[] = {-2,-4,-10}; 
+    double As[] = {50,50,25}; 
+    if (firn < 0)
+    {
+      for (int i = 0; i < sizeof(As)/sizeof(*As); i++) As[i] = -As[i]; 
+    }
+    double sigmas[] = {0.2,0.2,0.2}; 
+    frn = new iceprop::PerturbedFirn(arthern, 3,zs,As,sigmas); 
+  }
+
+
 
   /* Define simulation geometry */ 
   iceprop::SimGeometry g; 
-  g.max_depth =(TMath::Max(depth_in_ft+100,500) * ft_to_mtr); 
-  g.sky_height=20; 
-  g.resolution=10;
-  g.output_skip_factor=5; 
-  g.max_r = 500; 
-
+  g.max_depth =(TMath::Max(depth_in_ft+100,400) * ft_to_mtr); 
+  g.sky_height=40; 
+  g.resolution=20; // 5cm, enough for 500 MHz 
+  g.courant_factor = 0.5; 
+  g.pml_size = 10; 
+  g.output_skip_factor=10; 
+  g.max_r = 400; 
 
   /* Define the source */ 
-  iceprop::GaussianPulseSource s(0, -depth_in_ft*ft_to_mtr, f,w); 
+  iceprop::Source * s = 0 ; 
+  if ( f> 0) 
+  {
+    s = new iceprop::GaussianPulseSource(0, -depth_in_ft*ft_to_mtr, f,2*w); 
+  }
+  else
+  {
+    s = new iceprop::ButterworthSource(0, -depth_in_ft * ft_to_mtr,  -f,w); 
+  }
 
   /* Initialize the simulation */ 
-  iceprop::Sim sim(frn, &g, &s); 
+  iceprop::Sim sim(frn, &g, s); 
 
   /* add time domain measurements */ 
-  sim.addTimeDomainMeasurement( meep::Ez, 1*ft_to_mtr, -depth_in_ft*ft_to_mtr); 
+  sim.addTimeDomainMeasurement( meep::Ez, 0, -depth_in_ft*ft_to_mtr); 
+  sim.addTimeDomainMeasurement( meep::Ez, 1, -depth_in_ft*ft_to_mtr); 
+  sim.addTimeDomainMeasurement( meep::Ez, 100 * ft_to_mtr, receiver_depth); 
   sim.addTimeDomainMeasurement( meep::Ez, 200 * ft_to_mtr, receiver_depth); 
+  sim.addTimeDomainMeasurement( meep::Ez, 400 * ft_to_mtr, receiver_depth); 
   sim.addTimeDomainMeasurement( meep::Ez, 480 * ft_to_mtr,receiver_depth ); 
   sim.addTimeDomainMeasurement( meep::Ez, 1000*ft_to_mtr, receiver_depth); 
   sim.addTimeDomainMeasurement( meep::Ez, 1050*ft_to_mtr, receiver_depth); 
   sim.addTimeDomainMeasurement( meep::Ez, 50*ft_to_mtr, -depth_in_ft); 
   sim.addTimeDomainMeasurement( meep::Ez, 500*ft_to_mtr, -depth_in_ft); 
   sim.addTimeDomainMeasurement( meep::Ez, 1000*ft_to_mtr, -depth_in_ft); 
-  sim.addTimeDomainMeasurement( meep::Ez, 1500*ft_to_mtr, -depth_in_ft); 
+  sim.addTimeDomainMeasurement( meep::Ez, 1200*ft_to_mtr, -depth_in_ft); 
 
 
   /* If movie, add step output*/ 
