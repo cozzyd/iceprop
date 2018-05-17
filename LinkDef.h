@@ -11,6 +11,7 @@
 #pragma link C++ class iceprop::PerturbedFirn; 
 #pragma link C++ class iceprop::DoubleExponentialDensityFirn; 
 #pragma link C++ class iceprop::ArthernFirn; 
+#pragma link C++ class iceprop::MultiDatasetFit; 
 #pragma link C++ class iceprop::DensityTableFirn; 
 
 //Source.h 

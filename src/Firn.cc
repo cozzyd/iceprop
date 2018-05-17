@@ -107,23 +107,48 @@ iceprop::ArthernFirn::ArthernFirn()
 
 
 
+iceprop::MultiDatasetFit::MultiDatasetFit() 
+  : DoubleExponentialDensityFirn(32.4, 40.0, 324.8,550, 917)
+{
 
-iceprop::DensityTableFirn::DensityTableFirn(int Npts, const double * z, const double * rho) 
-  : g(Npts,z,rho) 
+}
+
+
+iceprop::DensityTableFirn::DensityTableFirn(int Npts, const double * z, const double * rho, const Firn * o) 
+  : g(Npts,z,rho), outside(o) 
 {
   g.SetBit(TGraph::kIsSortedX); 
-  g.GetXaxis()->SetTitle("z (m)") ; 
+
+  if (outside && g.GetN() > 2)//smoothly transition to model when deep 
+  {
+    // last point + (last point - second last point) 
+    double znew =  2*g.GetX()[g.GetN()-1] -g.GetX()[g.GetN()-2]; 
+    double rhonew = o->getDensity(-znew); 
+    g.SetPoint(g.GetN(), znew,rhonew); 
+  }
+
+  g.GetXaxis()->SetTitle("-z (m)") ; 
   g.GetYaxis()->SetTitle("#rho (kg/m^3)") ; 
   ipl = LINEAR; 
   spl = 0;
 }
 
-iceprop::DensityTableFirn::DensityTableFirn(const char * f) 
-  : g(f) 
+iceprop::DensityTableFirn::DensityTableFirn(const char * f, const Firn * o) 
+  : g(f), outside(o) 
 {
   g.SetBit(TGraph::kIsSortedX); 
   g.GetXaxis()->SetTitle("z (m)") ; 
   g.GetYaxis()->SetTitle("#rho (kg/m^3)") ; 
+
+  if (outside && g.GetN() > 2)//smoothly transition to model when deep 
+  {
+    // last point + (last point - second last point) 
+    double znew =  2*g.GetX()[g.GetN()-1] -g.GetX()[g.GetN()-2]; 
+    double rhonew = o->getDensity(-znew); 
+    g.SetPoint(g.GetN(), znew,rhonew); 
+  }
+
+
   ipl = LINEAR; 
   spl = 0;
 }
@@ -132,6 +157,11 @@ static int spline_counter = 0;
 
 double iceprop::DensityTableFirn::getDensity(double z) const
 {
+  //density outside of bounds 
+  if ( (-z < g.GetX()[0] || -z > g.GetX()[g.GetN()-1]) && outside)
+  {
+    return outside->getDensity(z); 
+  }
 
   if (ipl == SPLINE3) 
   {
@@ -141,12 +171,12 @@ double iceprop::DensityTableFirn::getDensity(double z) const
       spl = new TSpline3(str.Data(), g.GetX(), g.GetY(), g.GetN()); 
     }
 
-    return spl->Eval(z); 
+    return spl->Eval(-z); 
   }
 
   else
   {
-    return g.Eval(z); 
+    return g.Eval(-z); 
   }
 
 }

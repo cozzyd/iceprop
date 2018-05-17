@@ -74,7 +74,7 @@ namespace iceprop
   class DoubleExponentialDensityFirn : public Firn 
   {
     public: 
-      DoubleExponentialDensityFirn (double shallow_length_scale, double deep_length_scale, double surface_density, double critical_density, double deep_density = 917); 
+      DoubleExponentialDensityFirn (double shallow_length_scale, double deep_length_scale, double surface_density, double critical_density = 550, double deep_density = 917); 
       virtual double getDensity(double z) const; 
 
     private: 
@@ -92,6 +92,15 @@ namespace iceprop
     public:
       ArthernFirn(); 
   }; 
+
+  /** Fit to a bunch of density data */
+  class MultiDatasetFit : public DoubleExponentialDensityFirn
+  {
+    public: 
+      MultiDatasetFit(); 
+  }; 
+
+  /** Density data from Hawley and Morris 06 , with fit outside of bounds */ 
 
 
   /** This takes a firn model and adds gaussian to it */ 
@@ -117,10 +126,12 @@ namespace iceprop
   {
 
     public: 
-      /** Pass the points in a density table for the firn. */ 
-      DensityTableFirn(int Npoints, const double * z, const double * rho); 
+      /** Pass the points in a density table for the firn.  Note that
+       * the table should have the opposite sign for z (i.e. in units of depth)
+       * to match most references */ 
+      DensityTableFirn(int Npoints, const double * z, const double * rho, const Firn * outside = 0); 
       /** Pass a file. It should be a whitespaec separated depth and density */ 
-      DensityTableFirn(const char * file); 
+      DensityTableFirn(const char * file, const Firn * outside = 0); 
 
       enum InterpolationType
       {
@@ -144,6 +155,7 @@ namespace iceprop
     private: 
       TGraph g;
       mutable TSpline3 *spl; 
+      const Firn * outside; 
       InterpolationType ipl;  
   }; 
 }
