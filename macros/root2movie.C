@@ -8,6 +8,7 @@ struct movie_opts
   int width = 1920; 
   int height = 1080; 
   int max_entry = -1; 
+  bool line_at_zero = true; 
 
 
 }; 
@@ -40,6 +41,8 @@ void root2movie(const char* fname, const char * movie_name = "movie.mp4",
   int maxi = opts.max_entry;
   if (maxi < 0) maxi = tree->GetEntries();
 
+  TGraph line(2); 
+
   for (int i = 0; i < maxi; i++)
   {
     tree->GetEntry(i); 
@@ -54,6 +57,15 @@ void root2movie(const char* fname, const char * movie_name = "movie.mp4",
     }
 
     hist->Draw("colz"); 
+
+    if (opts.line_at_zero) 
+    {
+      line.SetPoint(0,hist->GetXaxis()->GetXmin(),0); 
+      line.SetPoint(1,hist->GetXaxis()->GetXmax(),0); 
+      line.Draw("lsame"); 
+    }
+
+
     str.Form("%s/frame_%06d.png", opts.tmpdir, i); 
     c->SaveAs(str.Data()); 
   }

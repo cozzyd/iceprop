@@ -4,7 +4,7 @@
  * */ 
 
 const double ft_to_mtr = 0.3048; 
-const double transmitter_depth = -3*ft_to_mtr; 
+double transmitter_depth = -3*ft_to_mtr; 
 
 const bool use_butterworth = true; 
 const double f= 0.25; 
@@ -50,11 +50,12 @@ iceprop::Firn * getFirn(int firn)
 }
 
 
-void summit13_single_transmit(int firn = 0, bool vpol = true) 
+void summit13_single_transmit(int firn = 0, bool vpol = true, int depth_ft = 3) 
 {
+  transmitter_depth = -depth_ft*ft_to_mtr; 
 
   /* define and make the output dir */ 
-  TString dir; dir.Form("summit13_single_low_f/firn_%d_%s/", firn, vpol ? "vpol" : "hpol"); 
+  TString dir; dir.Form("summit13_single_low_by_depth/%d_ft/firn_%d_%s/", depth_ft, firn, vpol ? "vpol" : "hpol"); 
   TString cmd; cmd.Form("mkdir -p %s", dir.Data()); system(cmd.Data()); 
   cmd.Form("echo %s  > %s/firn.txt", firn_descs[firn], dir.Data()); system(cmd.Data()); 
 
@@ -66,8 +67,8 @@ void summit13_single_transmit(int firn = 0, bool vpol = true)
   g.resolution=20; // 5cm, enough for 300 MHz 
   g.courant_factor = 0.5; 
   g.output_skip_factor=10; 
-  g.pml_size = 30; 
-  g.sky_height=g.pml_size+10; 
+  g.pml_size = 20.; 
+  g.sky_height=g.pml_size+80; 
   g.max_depth =(620 * ft_to_mtr) + g.pml_size; 
   g.max_r = 360; 
 
@@ -118,13 +119,13 @@ void summit13_single_transmit(int firn = 0, bool vpol = true)
   }
   TString fname; 
   fname.Form("%s/intermediate.root", dir.Data()); 
-  sim.saveIntermediateGlobals(fname.Data(),500); 
+  sim.saveIntermediateGlobals(fname.Data(),2000); 
   /* uncomment to track global maximum of Ez (very slow!) */ 
   sim.trackGlobalMaximum(c); 
   sim.trackGlobalIntegral(c); 
 
   /* run the simulation for 2.5 us*/ 
-  sim.run(500); 
+  sim.run(2500); 
 
   /* that's it for running the simulation, the rest plots and saves some of the stuff we made*/ 
   fname.Form("%s/measurements.root", dir.Data());
