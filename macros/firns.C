@@ -33,7 +33,9 @@ void setErrors(TGraph * g, double ex, double ey)
 void firns(bool use_hawley_06 = false) 
 {
 
-  gStyle->SetOptFit(1); 
+  gStyle->SetOptFit(11); 
+  gStyle->SetLineScalePS(1); 
+  gStyle->SetFitFormat(".2f"); 
   TGraph * hawley_06 = new TGraphErrors("data/hawley06.txt"); 
   hawley_06->SetTitle("Hawley'06 Neutron Data ( ??? )"); 
   setErrors(hawley_06, 0.2, 20);
@@ -62,18 +64,25 @@ void firns(bool use_hawley_06 = false)
   if (use_hawley_06) 
     mg->Add(hawley_06); 
 
-  mg->Add(hawley_neutron); 
-  mg->Add(hawley_icecore); 
-  mg->Add(hawley_snowpit); 
-  mg->Add(alley); 
-  mg->Add(gisp2); 
+  hawley_neutron->SetMarkerStyle(2); 
+  hawley_icecore->SetMarkerStyle(3); 
+  hawley_snowpit->SetMarkerStyle(5); 
+  alley->SetMarkerStyle(29); 
+  gisp2->SetMarkerStyle(34); 
+  mg->Add(hawley_neutron,"PLX"); 
+  mg->Add(hawley_icecore,"PLX"); 
+  mg->Add(hawley_snowpit,"PLX"); 
+  mg->Add(alley,"PLX"); 
+  mg->Add(gisp2,"PLX"); 
+  gStyle->SetMarkerSize(2); 
 
 
   mg->Draw("a pmc plc"); 
   TF1 * arthern = new TF1("arthern", double_exp,0,500,3); 
-  arthern->SetTitle("Arthern Nominal");
+  arthern->SetTitle("Arthern'13 Model");
   arthern->SetParameters(280,27,42); 
   arthern->SetLineColor(3); 
+  arthern->SetMarkerColor(3); 
 
   arthern->Draw("lsame"); 
 
@@ -89,6 +98,7 @@ void firns(bool use_hawley_06 = false)
   fit->SetTitle("Best Fit"); 
   fit->SetParameters(280,27,42); 
   fit->SetLineColor(2); 
+  fit->SetMarkerColor(2); 
   fit->SetParName(0,"Best Fit #rho_{s}"); 
   fit->SetParName(1,"Best Fit L_{1}"); 
   fit->SetParName(2,"Best Fit L_{2}"); 
@@ -111,9 +121,9 @@ void firns(bool use_hawley_06 = false)
   fit->Draw("lsame"); 
 
   (use_hawley_06 ? hawley_06 : hawley_neutron)->Fit(neutron_only,"N"); 
-  neutron_only->Draw("lsame"); 
+//  neutron_only->Draw("lsame"); 
   alley->Fit(icecore_only,"N"); 
-  icecore_only->Draw("lsame"); 
+//  icecore_only->Draw("lsame"); 
  
   fit->Print(); 
   gPad->BuildLegend(0.5,0.15,0.8,0.45,"","lp"); 
