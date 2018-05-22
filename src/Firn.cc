@@ -108,7 +108,7 @@ iceprop::ArthernFirn::ArthernFirn()
 
 
 iceprop::MultiDatasetFit::MultiDatasetFit() 
-  : DoubleExponentialDensityFirn(32.4, 40.0, 324.8,550, 917)
+  : DoubleExponentialDensityFirn(30.84, 40.53, 322.77,550, 917)
 {
 
 }
