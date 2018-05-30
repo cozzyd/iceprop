@@ -30,10 +30,21 @@ void setErrors(TGraph * g, double ex, double ey)
 
 }
 
+
+
 void firns(bool use_hawley_06 = false) 
 {
+  TCanvas * c = new TCanvas("firns","Firns", 800,1200); 
+  c->Divide(1,3); 
 
   gStyle->SetOptFit(11); 
+  gStyle->SetStatX(0.49); 
+  gStyle->SetStatY(0.88); 
+  gStyle->SetTitleH(0.1); 
+  gStyle->SetPalette(kRainBow); 
+  gStyle->SetStatStyle(0); 
+  gStyle->SetLegendBorderSize(0); 
+  gStyle->SetStatBorderSize(0); 
   gStyle->SetLineScalePS(1); 
   gStyle->SetFitFormat(".2f"); 
   TGraph * hawley_06 = new TGraphErrors("data/hawley06.txt"); 
@@ -74,10 +85,19 @@ void firns(bool use_hawley_06 = false)
   mg->Add(hawley_snowpit,"PLX"); 
   mg->Add(alley,"PLX"); 
   mg->Add(gisp2,"PLX"); 
+  mg->SetTitle("Data and Fits"); 
   gStyle->SetMarkerSize(2); 
 
-
+  c->cd(1); 
   mg->Draw("a pmc plc"); 
+  mg->GetXaxis()->SetLabelSize(0.045); 
+  mg->GetYaxis()->SetLabelSize(0.045); 
+  mg->GetXaxis()->SetTitleSize(0.06); 
+  mg->GetYaxis()->SetTitleSize(0.06); 
+  mg->GetXaxis()->SetTitleOffset(0.7); 
+  mg->GetYaxis()->SetTitleOffset(0.6); 
+
+
   TF1 * arthern = new TF1("arthern", double_exp,0,500,3); 
   arthern->SetTitle("Arthern'13 Model");
   arthern->SetParameters(280,27,42); 
@@ -88,7 +108,7 @@ void firns(bool use_hawley_06 = false)
 
   TGraph * critical = new TGraph(2); 
   critical->SetPoint(0, 0, 550); 
-  critical->SetPoint(1, alley->GetX()[alley->GetN()-1], 550); 
+  critical->SetPoint(1, 120, 550); 
   critical->SetTitle("#rho_{c}"); 
   critical->SetLineStyle(2); 
   critical->Draw("lsame"); 
@@ -125,7 +145,62 @@ void firns(bool use_hawley_06 = false)
   alley->Fit(icecore_only,"N"); 
 //  icecore_only->Draw("lsame"); 
  
+  gPad->BuildLegend(0.6,0.15,0.85,0.45,"","lp"); 
+  gPad->SetRightMargin(0.02); 
+
+  gPad->SetGridx(); 
+  gPad->SetGridy(); 
+  gPad->SetTickx(); 
+  gPad->SetTicky(); 
+
+  c->cd(2); 
+
+  iceprop::MultiDatasetFit multi_fit; 
+  iceprop::Firn * Hawley =  new iceprop::DensityTableFirn ("data/hawley08_neutron.txt", &multi_fit); 
+  iceprop::Firn * Alley =  new iceprop::DensityTableFirn ("data/alley_koci.txt", &multi_fit); 
+  TGraph *Gh = Hawley->makeGraph(1000); 
+  Gh->SetLineColor(31); 
+  Gh->SetTitle("Hawley-derived Model"); 
+  Gh->Draw("alp"); 
+  Gh->GetXaxis()->SetRangeUser(0,120); 
+  Gh->GetXaxis()->SetLabelSize(0.049); 
+  Gh->GetYaxis()->SetLabelSize(0.049); 
+  Gh->GetXaxis()->SetTitleSize(0.06); 
+  Gh->GetYaxis()->SetTitleSize(0.06); 
+  Gh->GetXaxis()->SetTitleOffset(0.7); 
+  Gh->GetYaxis()->SetTitleOffset(0.6); 
+
+  gPad->SetRightMargin(0.02); 
+
+
+  gPad->SetGridx(); 
+  gPad->SetGridy(); 
+  gPad->SetTickx(); 
+  gPad->SetTicky(); 
+  critical->Draw("lsame"); 
+  c->cd(3); 
+  TGraph *Ga = Alley->makeGraph(1000); 
+  Ga->SetTitle("Alley-derived Model"); 
+  Ga->SetLineColor(32); 
+  Ga->Draw("alp"); 
+  Ga->GetXaxis()->SetLabelSize(0.045); 
+  Ga->GetYaxis()->SetLabelSize(0.045); 
+  Ga->GetXaxis()->SetTitleSize(0.06); 
+  Ga->GetYaxis()->SetTitleSize(0.06); 
+  Ga->GetXaxis()->SetTitleOffset(0.7); 
+  Ga->GetYaxis()->SetTitleOffset(0.6); 
+
+
+  Ga->GetXaxis()->SetRangeUser(0,120); 
+
+  gPad->SetGridx(); 
+  gPad->SetGridy(); 
+  gPad->SetRightMargin(0.02); 
+  gPad->SetTickx(); 
+  gPad->SetTicky(); 
+  critical->Draw("lsame"); 
+
   fit->Print(); 
-  gPad->BuildLegend(0.5,0.15,0.8,0.45,"","lp"); 
+  c->SaveAs("firn_fits.pdf"); 
 
 }

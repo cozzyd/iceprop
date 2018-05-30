@@ -7,8 +7,8 @@ const double ft_to_mtr = 0.3048;
 double transmitter_depth = -3*ft_to_mtr; 
 
 const bool use_butterworth = true; 
-const double f= 0.25; 
-const double w = 0.05; 
+const double f= 0.17; 
+const double w = 0.08; 
 
 const bool movie = true; 
 
@@ -17,7 +17,7 @@ iceprop::ArthernFirn arthern ;
 iceprop::MultiDatasetFit multi_fit; 
 
 
-iceprop::Source * s = new iceprop::ButterworthSource(0, transmitter_depth,  f,w); 
+iceprop::Source * s = 0;
 
 const char * firn_descs[] = 
 {
@@ -53,9 +53,9 @@ iceprop::Firn * getFirn(int firn)
 void summit13_single_transmit(int firn = 0, bool vpol = true, int depth_ft = 3) 
 {
   transmitter_depth = -depth_ft*ft_to_mtr; 
-
+  s = new iceprop::ButterworthSource(0, transmitter_depth,  f,w); 
   /* define and make the output dir */ 
-  TString dir; dir.Form("summit13_single_low_by_depth/%d_ft/firn_%d_%s/", depth_ft, firn, vpol ? "vpol" : "hpol"); 
+  TString dir; dir.Form("summit13_single_low_f_by_depth/%d_ft/firn_%d_%s/", depth_ft, firn, vpol ? "vpol" : "hpol"); 
   TString cmd; cmd.Form("mkdir -p %s", dir.Data()); system(cmd.Data()); 
   cmd.Form("echo %s  > %s/firn.txt", firn_descs[firn], dir.Data()); system(cmd.Data()); 
 
@@ -64,7 +64,7 @@ void summit13_single_transmit(int firn = 0, bool vpol = true, int depth_ft = 3)
 
   /* Define simulation geometry */ 
   iceprop::SimGeometry g; 
-  g.resolution=20; // 5cm, enough for 300 MHz 
+  g.resolution= 20; // ~5 cm, enough for 300 MHz 
   g.courant_factor = 0.5; 
   g.output_skip_factor=10; 
   g.pml_size = 20.; 
