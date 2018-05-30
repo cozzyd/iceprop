@@ -52,11 +52,13 @@ namespace iceprop
        **/
       virtual double getDensity(double z) const { return 0; } // kg/m^3. Will be used for refraction unless overriden./  
 
+      TGraph * makeGraph(bool density = true, int npoints = 200, double min = 0, double max = 120) const; 
 
       /** Returns the dielectric constant, epsilon. By default this is derived from the index of refraction (assuming no relative permeability).
        *  z should be negative (relative to surface) if you want ice and in m
        **/ 
       virtual double eps(double z) const; 
+
 
       /** Key-based firn retrieval, for use with config file 
        *

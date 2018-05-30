@@ -211,3 +211,25 @@ double iceprop::PerturbedFirn::getDensity(double z) const
   return rho; 
 }
 
+
+TGraph * iceprop::Firn::makeGraph(bool density, int npoints, double min, double max) const
+{
+  TGraph * g = new TGraph(npoints); 
+  g->GetXaxis()->SetTitle("z (m)"); 
+  g->SetTitle(""); 
+  g->GetYaxis()->SetTitle(density ? "#rho (kg/m^{3})" : "Refraction Index"); 
+  g->GetXaxis()->SetRangeUser(min,max); 
+  g->SetLineColor(2); 
+  g->SetLineWidth(2); 
+  double dz = (max-min)/(npoints-1); 
+
+  for (int i = 0; i < npoints; i++)
+  {
+    double z = min + i *dz; 
+    double v = density ? getDensity(-z) : getIndexOfRefraction(-z); 
+    g->SetPoint(i,z,v); 
+  }
+
+  return g; 
+
+}
