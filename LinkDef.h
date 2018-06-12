@@ -13,6 +13,7 @@
 #pragma link C++ class iceprop::ArthernFirn; 
 #pragma link C++ class iceprop::MultiDatasetFit; 
 #pragma link C++ class iceprop::DensityTableFirn; 
+#pragma link C++ class iceprop::ConstantFirn; 
 
 //Source.h 
 #pragma link C++ class iceprop::Source; 

@@ -45,6 +45,9 @@ iceprop::Firn * getFirn(int firn)
   {
     return new iceprop::DensityTableFirn("data/alley_koci.txt", &multi_fit); 
   }
+  
+  if (firn == 4)
+    return new iceprop::ConstantFirn(917); 
 
   return 0; 
 }

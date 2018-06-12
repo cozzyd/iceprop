@@ -123,6 +123,7 @@ namespace iceprop
 
   }; 
 
+
   /** Firn based on interpolating a density table */ 
   class DensityTableFirn : public Firn 
   {
@@ -160,6 +161,19 @@ namespace iceprop
       const Firn * outside; 
       InterpolationType ipl;  
   }; 
+
+  class ConstantFirn : public Firn
+  {
+
+    public:
+      ConstantFirn(double dens) : rho(dens) { ; } 
+
+      virtual double getDensity(double z) const { return rho; } 
+    
+    private: 
+      double rho; 
+
+  };
 }
 
 #endif
