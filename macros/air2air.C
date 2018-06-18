@@ -11,6 +11,8 @@ void air2air()
 
   iceprop::SimGeometry g; 
   g.max_depth =0; 
+  g.resolution=20; 
+  g.output_skip_factor=10; 
   g.sky_height=100; 
   g.max_r = 200; 
 

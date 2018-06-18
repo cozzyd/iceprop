@@ -55,6 +55,7 @@ iceprop::Firn * getFirn(int firn)
 
 void summit13_single_transmit(int firn = 0, bool vpol = true, int depth_ft = 3) 
 {
+  iceprop::mpi::init init(0,0); 
   transmitter_depth = -depth_ft*ft_to_mtr; 
   s = new iceprop::ButterworthSource(0, transmitter_depth,  f,w); 
   /* define and make the output dir */ 
