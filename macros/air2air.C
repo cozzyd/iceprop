@@ -4,6 +4,7 @@
 
 void air2air() 
 {
+  iceprop::mpi::init init(0,0); 
   system("mkdir -p air2air"); 
 
   iceprop::ArthernFirn frn ;
@@ -28,18 +29,22 @@ void air2air()
   sim.addStepOutput(o); 
   sim.run(500); 
 
-  TCanvas * ms = new TCanvas("measurements","Measurements",1000,800); 
+  if (iceprop::mpi::am_master()) 
+  {
 
-  ms->Divide(2,2); 
-  ms->cd(1); 
-  sim.getMeasurements()[0].makeGraph()->Draw("al"); 
-  ms->cd(2); 
-  sim.getMeasurements()[1].makeGraph()->Draw("al"); 
-  ms->cd(3); 
-  sim.getMeasurements()[2].makeGraph()->Draw("al"); 
-  ms->cd(4); 
-  sim.getMeasurements()[3].makeGraph()->Draw("al"); 
+    TCanvas * ms = new TCanvas("measurements","Measurements",1000,800); 
 
-  ms->SaveAs("air2air/air2air.pdf"); 
+    ms->Divide(2,2); 
+    ms->cd(1); 
+    sim.getMeasurements()[0].makeGraph()->Draw("al"); 
+    ms->cd(2); 
+    sim.getMeasurements()[1].makeGraph()->Draw("al"); 
+    ms->cd(3); 
+    sim.getMeasurements()[2].makeGraph()->Draw("al"); 
+    ms->cd(4); 
+    sim.getMeasurements()[3].makeGraph()->Draw("al"); 
+
+    ms->SaveAs("air2air/air2air.pdf"); 
+  }
 
 }

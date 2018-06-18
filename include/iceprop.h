@@ -31,5 +31,6 @@
 #include "iceprop/Firn.h" 
 #include "iceprop/Units.h" 
 #include "iceprop/Source.h" 
+#include "iceprop/MPI.h" 
 
 #endif

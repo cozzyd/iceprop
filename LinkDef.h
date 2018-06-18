@@ -30,4 +30,8 @@
 #pragma link C++ class iceprop::TimeDomainMeasurement; 
 
 
+//MPI.h  
+#pragma link C++ namespace iceprop::mpi; 
+#pragma link C++ class iceprop::mpi::init; 
+
 #endif 

@@ -34,6 +34,8 @@
 
 
 
+
+
 /** necessary for epsilon with no void */
 static iceprop::Firn * the_firn; 
 static iceprop::SimGeometry * the_geom;
@@ -175,6 +177,9 @@ int iceprop::Sim::saveIntermediateGlobals(const char * file, int skip_factor)
     return 1; 
   }
 
+  if (!mpi::am_master()) return 0; 
+
+
   intermediate_globals_file = new TFile(file,"RECREATE"); 
   intermediate_globals_tree = new TTree("globals","globals"); 
   intermediate_globals_tree->SetAutoSave(10); 
@@ -237,7 +242,7 @@ void iceprop::Sim::trackGlobalIntegral(meep::component what, ScalarType type )
   gm.tfirst = make_hist(name.Data(), title.Data(), geom); 
   integrals.push_back(gm); 
 
-  if (intermediate_globals_tree) 
+  if (intermediate_globals_tree && mpi::am_master()) 
   {
     intermediate_globals_tree->Branch(gm.integ->GetName(), &integrals[integrals.size()-1].integ); 
     intermediate_globals_tree->Branch(gm.tfirst->GetName(), &integrals[integrals.size()-1].tfirst); 
@@ -269,7 +274,7 @@ void iceprop::Sim::trackGlobalMaximum(meep::component what, ScalarType type )
   gm.tmax = make_hist(name.Data(), title.Data(), geom); 
 
   maxima.push_back(gm); 
-  if (intermediate_globals_tree) 
+  if (intermediate_globals_tree && mpi::am_master()) 
   {
     intermediate_globals_tree->Branch(gm.max->GetName(), &maxima[maxima.size()-1].max); 
     intermediate_globals_tree->Branch(gm.tmax->GetName(), &maxima[maxima.size()-1].tmax); 
@@ -311,13 +316,13 @@ void iceprop::Sim::addStepOutput(StepOutput out)
   if (!out.ch) out.ch =(geom->max_depth + geom->sky_height)*geom->resolution * 1.1; 
 
 
-  if (!out.output_prefix)
+  if (!out.output_prefix && mpi::am_master())
   {
     out.output_prefix = get_output_prefix(out.what, out.type); 
   }
 
 
-  if (!out.c && ( out.format & (O_PNG | O_PDF)))
+  if (!out.c && ( out.format & (O_PNG | O_PDF))  && mpi::am_master())
   {
     TString cname;
     cname.Form("c%d_%s", count_the_canvases++, out.output_prefix); 
@@ -325,7 +330,7 @@ void iceprop::Sim::addStepOutput(StepOutput out)
     delete_list.push_back(out.c); 
   }
 
-  if (!out.outf && (out.format & O_ROOT)) 
+  if (!out.outf && (out.format & O_ROOT) && mpi::am_master()) 
   {
     TString path;
     path.Form("%s/%s.root", out.out_dir, out.output_prefix); 
@@ -335,7 +340,7 @@ void iceprop::Sim::addStepOutput(StepOutput out)
   }
 
   /* store a histogram to avoid constant reallocation */ 
-  if (out.format & (O_ROOT | O_PNG | O_PDF)) 
+  if (out.format & (O_ROOT | O_PNG | O_PDF) && mpi::am_master()) 
   {
     out.h = make_hist(out.output_prefix, out.output_prefix, geom, out.double_precision); 
     if (!out.format & (O_ROOT))
@@ -344,7 +349,7 @@ void iceprop::Sim::addStepOutput(StepOutput out)
     }
   }
 
-  if (out.format & O_ROOT) 
+  if (out.format & O_ROOT && mpi::am_master()) 
   {
     out.t = new TTree(out.output_prefix,out.output_prefix);  
     out.t->Branch("hist",out.h);   
@@ -475,6 +480,7 @@ void iceprop::Sim::run(double time)
   double meep_time = time * ns_to_meep;  
   double t0 = f->time(); 
 
+
   /* this is just the line for the surface in output plots */ 
 
   int i = 0; 
@@ -585,7 +591,7 @@ void iceprop::Sim::run(double time)
     }
 
 
-    if (intermediate_globals_tree && (i % intermediate_globals_interval == 0))
+    if (intermediate_globals_tree && (i % intermediate_globals_interval == 0) && mpi::am_master())
     {
       intermediate_globals_file->cd(); 
       intermediate_globals_tree->Fill(); 
@@ -595,6 +601,8 @@ void iceprop::Sim::run(double time)
     /* Output the non-O_HDF5 stuff. Remember that index should be one minus what we have */ 
     for (size_t o = 0; o < outputs.size(); o++) 
     {
+      if (!mpi::am_master()) break; 
+
       //not this step 
       if ( ! ((i - outputs[o].skip_offset > 0 )  && ( (i - outputs[o].skip_offset) % outputs[o].skip_factor) == 0)) 
         continue; 
