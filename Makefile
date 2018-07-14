@@ -2,19 +2,27 @@
 
 
 ### Configurable options: 
+## turn on to enable MPI support (But will be disabled anyway if meep wasn't built with MPI support) 
 USE_MPI=yes
 
 
 
 ### End configurable options 
 
-CXXFLAGS=`pkg-config --cflags meep` `root-config --cflags` -g -O2  -fPIC
+CXXFLAGS=`pkg-config --cflags meep` `root-config --cflags` -g -Os  -fPIC -march=native
 LDFLAGS=`pkg-config --libs meep` `root-config --libs` -lRootFftwWrapper
 
+MEEP_MPI=`meep --version | grep "Using MPI"` 
+
+ifeq ($(MEEP_MPI),) 
+	USE_MPI=no
+endif 
+
+MPI_MESSAGE="MPI is disabled" 
 ifeq ($(USE_MPI),yes)
 	CXXFLAGS+= -DENABLE_MPI  
-	CXX=mpic++ 
-	LDFLAGS+=-lmpi 
+	CXX=mpiCC  
+	MPI_MESSAGE="MPI is enabled" 
 endif
 
 .PHONY: clean all 
@@ -34,6 +42,7 @@ LINKLIBNAME=iceprop
 LIBNAME = $(LIBDIR)/lib$(LINKLIBNAME).so 
 
 all: $(LIBNAME) $(BINARIES) 
+	@echo $(MPI_MESSAGE)
 
 $(LIBNAME): $(OBJS) | $(LIBDIR)
 	@echo Building shared library $@
