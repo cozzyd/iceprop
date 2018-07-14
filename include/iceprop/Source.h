@@ -77,6 +77,7 @@ namespace iceprop
    public: 
      GraphSource(double r, double z, const TGraph * greal, TGraph * gimag = 0, meep::component c = meep::Ez); 
      virtual const meep::src_time & getSource() const { return src; } 
+     void offset(double t); 
      virtual ~GraphSource(); 
      TGraph * getReal() { return g[0]; } 
      TGraph * getImag() { return g[1]; } 

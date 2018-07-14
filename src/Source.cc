@@ -70,6 +70,17 @@ iceprop::GraphSource::GraphSource(double r_, double z_, const TGraph*  gr, TGrap
   g[0]->SetBit(TGraph::kIsSortedX); 
 }
 
+
+void iceprop::GraphSource::offset(double t) 
+{
+  for (int i = 0; i < g[0]->GetN(); i++) 
+  {
+    g[0]->GetX()[i]+=t; 
+    g[1]->GetX()[i]+=t; 
+  }
+}
+
+
 iceprop::ButterworthSource::~ButterworthSource() 
 {
   delete graph_source; 
@@ -81,8 +92,16 @@ iceprop::ButterworthSource::ButterworthSource(double r_, double z_, double fc, d
   z = z_; 
   component = c; 
   FFTtools::ButterworthFilter filt(FFTtools::BANDPASS, order, fc/fnyq, w/fnyq); 
-  TGraph * g = filt.impulseGraph(max_length, 0.5*fnyq,2*fnyq/(fc-w)); 
-  TGraph * gos = FFTtools::getInterpolatedGraphFreqDom(g,1./os); 
+  TGraph * g = filt.impulseGraph(max_length, 0.5/fnyq,fnyq/(fc-w)); 
+  TGraph * gos = FFTtools::getInterpolatedGraphFreqDom(g,0.5/(fnyq*os)); 
+
+  // shift to zero 
+  double shift = gos->GetX()[0]; 
+  if (shift) 
+  {
+    for (int i = 0; i < gos->GetN(); i++) gos->GetX()[i] -=shift; 
+  }
+  
   TGraph * gos_i =FFTtools::getHilbertTransform(gos); 
   long max= TMath::LocMax(gos->GetN(), gos->GetY()); 
   for (int i = 0; i < gos->GetN(); i++) 
