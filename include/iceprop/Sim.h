@@ -49,25 +49,18 @@ namespace iceprop
   /** This defines the geometry of the simulation */ 
   struct SimGeometry
   {
-    int max_depth; /// The maximum  depth (in m) of the simulation (for now, integer)
-    int max_r; /// The maximum radius (in m) of the simulation (for now, integer)
-    int sky_height; /// The amount of sky to simulate (in m)  (for now, integer)
-    int  resolution; ///The ``resolution" (number of elements per m) 
-    int output_skip_factor; ///record every nth bin in the output (to avoid having to calculate the field everywhere) 
+    int max_depth = 200; /// The maximum  depth (in m) of the simulation (for now, integer)
+    int max_r = 500; /// The maximum radius (or extent) (in m) of the simulation (for now, integer)
+    int sky_height = 10; /// The amount of sky to simulate (in m)  (for now, integer)
+    int  resolution = 10; ///The ``resolution" (number of elements per m) 
+    int output_skip_factor = 1; ///record every nth bin in the output (to avoid having to calculate the field everywhere) 
 
-    double courant_factor; /// The courant factor controls the scaling between delta_t and delta_x. 
-    double pml_size; ///The size of the "perfectly matched layer" "free space" boundary condition. See Meep documentation. 
+    double courant_factor = 0.5; /// The courant factor controls the scaling between delta_t and delta_x. 
+    double pml_size = 5; ///The size of the "perfectly matched layer" "free space" boundary condition. See Meep documentation. 
+    bool is_cylindrical = true; 
 
-    //these are the defaults
     SimGeometry() 
     {
-      max_depth = 200; 
-      max_r = 500; 
-      sky_height = 50; 
-      resolution = 10; // (10 cm resolution by default) 
-      pml_size = 5; 
-      output_skip_factor = 1; 
-      courant_factor = 0.5; 
     }
   }; 
 
