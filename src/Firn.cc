@@ -99,6 +99,12 @@ double iceprop::DoubleExponentialDensityFirn::getDensity(double z) const
   else return (rho_deep - (rho_deep - rho_surf)* exp(z/scale_shallow)); 
 }
 
+double iceprop::ExponentialFirn::getDensity(double z) const 
+{
+  if (z > 0) return 0; 
+  return rho_surf+ (rho_deep - rho_surf) * ( 1 - exp(z/scale)); 
+}
+
 
 iceprop::ArthernFirn::ArthernFirn() 
   : DoubleExponentialDensityFirn(27,42,280,550,917) 

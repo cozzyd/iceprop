@@ -10,7 +10,9 @@
 #pragma link C++ class iceprop::Firn; 
 #pragma link C++ class iceprop::PerturbedFirn; 
 #pragma link C++ class iceprop::DoubleExponentialDensityFirn; 
+#pragma link C++ class iceprop::ExponentialFirn; 
 #pragma link C++ class iceprop::ArthernFirn; 
+#pragma link C++ class iceprop::GorhamFirn; 
 #pragma link C++ class iceprop::MultiDatasetFit; 
 #pragma link C++ class iceprop::DensityTableFirn; 
 #pragma link C++ class iceprop::ConstantFirn; 

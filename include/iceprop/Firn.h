@@ -88,6 +88,30 @@ namespace iceprop
       double z_c; 
   };  
 
+  class ExponentialFirn : public Firn 
+  {
+    public:
+      ExponentialFirn(double scale_m, double surface_density, double deep_density = 917) 
+       : rho_surf(surface_density), scale(scale_m), rho_deep(deep_density) 
+      {}
+    private: 
+      virtual double getDensity(double z) const; 
+      double rho_surf; 
+      double scale; 
+      double rho_deep; 
+  }; 
+
+  /** I'm sure Peter loves that this is named after him in the "literature" (https://icecube.wisc.edu/~mnewcomb/radio/#icedensity) */ 
+  class GorhamFirn 
+    : public ExponentialFirn
+  {
+    public: 
+      GorhamFirn() 
+        : ExponentialFirn (-0.01535, 374.15) 
+      {
+      }
+  };
+
   /** This uses the attenuation depth model used in Arthern et al */ 
   class ArthernFirn  : public DoubleExponentialDensityFirn 
   {
@@ -122,7 +146,6 @@ namespace iceprop
 
 
   }; 
-
 
   /** Firn based on interpolating a density table */ 
   class DensityTableFirn : public Firn 
