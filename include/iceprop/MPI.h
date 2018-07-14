@@ -27,6 +27,7 @@
  *************************************************************************/ 
 
 #include <meep.hpp>
+#include <stdlib.h>
 
 #ifdef ENABLE_MPI
 #include <mpi.h> 
@@ -46,9 +47,14 @@ namespace iceprop
       return rank ==0 ; 
     }
 
+    inline int barrier() { return MPI_Barrier(MPI_COMM_WORLD); } 
+    inline void abort(int code) { MPI_Abort(MPI_COMM_WORLD, code); } 
+
 #else
     inline bool enabled() { return false; }
     inline bool am_master() { return true; }
+    inline int barrier() { return 0; }
+    inline void abort(int code) { exit(code); }
 #endif
 
     //this is just a wrapper around the meep class
