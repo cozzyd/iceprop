@@ -136,8 +136,8 @@ iceprop::DensityTableFirn::DensityTableFirn(int Npts, const double * z, const do
 
   g.GetXaxis()->SetTitle("-z (m)") ; 
   g.GetYaxis()->SetTitle("#rho (kg/m^3)") ; 
-  ipl = LINEAR; 
-  spl = 0;
+  ipl_type = LINEAR; 
+  ipl = 0;
 }
 
 iceprop::DensityTableFirn::DensityTableFirn(const char * f, const Firn * o) 
@@ -156,11 +156,28 @@ iceprop::DensityTableFirn::DensityTableFirn(const char * f, const Firn * o)
   }
 
 
-  ipl = LINEAR; 
-  spl = 0;
+  ipl_type = LINEAR; 
+  ipl = 0; 
 }
 
-static int spline_counter = 0; 
+
+void iceprop::DensityTableFirn::setInterpolationType(iceprop::DensityTableFirn::InterpolationType typ) 
+{  
+  if (ipl_type != typ && ipl) 
+  {
+    delete ipl; 
+    ipl = 0; 
+  }
+
+  if (!ipl) 
+  {
+      ipl = new ROOT::Math::Interpolator(g.GetN(), ipl_type == AKIMA ? ROOT::Math::Interpolation::kAKIMA : ROOT::Math::Interpolation::kCSPLINE);
+      ipl->SetData(g.GetN(), g.GetX(), g.GetY()); 
+  }
+
+
+  ipl_type = typ; 
+}
 
 double iceprop::DensityTableFirn::getDensity(double z) const
 {
@@ -170,27 +187,17 @@ double iceprop::DensityTableFirn::getDensity(double z) const
     return outside->getDensity(z); 
   }
 
-  if (ipl == SPLINE3) 
-  {
-    if (!spl) 
-    {
-      TString str; str.Form("firnspline%d",spline_counter++); 
-      spl = new TSpline3(str.Data(), g.GetX(), g.GetY(), g.GetN()); 
-    }
-
-    return spl->Eval(-z); 
-  }
-
-  else
+  if (ipl_type == LINEAR)
   {
     return g.Eval(-z); 
   }
-
+ 
+  return ipl->Eval(-z); 
 }
 
 iceprop::DensityTableFirn::~DensityTableFirn() 
 {
-  if (spl) delete spl; 
+  if (ipl) delete ipl; 
 }
 
 

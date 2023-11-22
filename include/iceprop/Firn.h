@@ -27,7 +27,14 @@
 #include "TGraph.h" 
 #include <vector> 
 
-class TSpline3; 
+namespace ROOT
+{
+  namespace Math
+  {
+    class Interpolator; 
+  }
+}
+
 namespace iceprop
 {
 
@@ -179,10 +186,11 @@ namespace iceprop
       enum InterpolationType
       {
         LINEAR, 
-        SPLINE3 
+        CSPLINE,
+        AKIMA 
       }; 
 
-      void setInterpolationType(InterpolationType typ) { ipl = typ; }
+      void setInterpolationType(InterpolationType typ); 
 
       virtual double getDensity(double z) const; 
 
@@ -190,16 +198,16 @@ namespace iceprop
        * be careful what you do with it. The graph is assumed to be sorted
        * in z, so if mess that up, it will not evaluate properly. Also, if
        * you modify after calling getDensity already and you are using spline interpolation,
-       * the spline will not be updated */ 
+       * the spline will not be updated (unless you toggle interpolation types...)!*/ 
       TGraph * getGraph() { return &g; } 
 
       virtual ~DensityTableFirn(); 
 
     private: 
       TGraph g;
-      mutable TSpline3 *spl; 
+      ROOT::Math::Interpolator * ipl; 
       const Firn * outside; 
-      InterpolationType ipl;  
+      InterpolationType ipl_type;  
   }; 
 
   class ConstantFirn : public Firn
