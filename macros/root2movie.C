@@ -9,6 +9,8 @@ struct movie_opts
   int height = 1080; 
   int max_entry = -1; 
   bool line_at_zero = true; 
+  bool ft = false; 
+  bool delete_temp = true; 
 
 
 }; 
@@ -73,37 +75,40 @@ void root2movie(const char* fname, const char * movie_name = "movie.mp4",
   for (int i = 0; i < maxi; i++)
   {
     tree->GetEntry(i); 
-    TH2 * ft = toFeet(hist); 
+    TH2 * h = opts.ft ? toFeet(hist) : hist; 
 
     if (opts.min)
     {
-      ft->SetMinimum(opts.min); 
+      h->SetMinimum(opts.min); 
     }
     if (opts.max) 
     {
-      ft->SetMaximum(opts.max); 
+      h->SetMaximum(opts.max); 
     }
 
-    ft->Draw("colz"); 
-    ft->SetStats(false); 
+    h->Draw("colz"); 
+    h->SetStats(false); 
 
     if (opts.line_at_zero) 
     {
-      line.SetPoint(0,ft->GetXaxis()->GetXmin(),0); 
-      line.SetPoint(1,ft->GetXaxis()->GetXmax(),0); 
+      line.SetPoint(0,h->GetXaxis()->GetXmin(),0); 
+      line.SetPoint(1,h->GetXaxis()->GetXmax(),0); 
       line.Draw("lsame"); 
     }
 
 
     str.Form("%s/frame_%06d.png", opts.tmpdir, i); 
     c->SaveAs(str.Data()); 
-    delete ft; 
+    if (opts.ft) delete h; 
   }
 
   str.Form("ffmpeg -y -i %s/frame_%%06d.png -c:v libx264 -pix_fmt yuv420p %s", opts.tmpdir, movie_name); 
   system(str.Data()); 
-  str.Form("rm -rf %s", opts.tmpdir); 
-  system(str.Data()); 
+  if (opts.delete_temp) 
+  {
+    str.Form("rm -rf %s", opts.tmpdir); 
+    system(str.Data()); 
+  }
 
   delete hist; 
   gROOT->SetBatch(batch); 
