@@ -20,6 +20,14 @@ double double_exp(double *x, double * par)
 }
 
 
+double single_exp(double *x, double * par) 
+{
+  double rho_s = par[0]; 
+  double L1 = par[1]; 
+  double z = *x; 
+  return rho_i - (rho_i - rho_s) *exp(-z/L1); 
+}
+
 void setErrors(TGraph * g, double ex, double ey) 
 {
   for (int i= 0; i < g->GetN(); i++)
@@ -123,6 +131,14 @@ void firns(bool use_hawley_06 = false)
   fit->SetParName(1,"Best Fit L_{1}"); 
   fit->SetParName(2,"Best Fit L_{2}"); 
 
+  TF1 * single_fit = new TF1("Single Fit", single_exp,0,500,2); 
+  single_fit->SetTitle("Single Exponential Fit");
+  single_fit->SetParameters(280,30); 
+  single_fit->SetLineColor(20); 
+  single_fit->SetMarkerColor(20); 
+  single_fit->SetParName(0,"Single Exponential Fit #rho_{s}"); 
+  single_fit->SetParName(1,"Single Exponential Fit L"); 
+ 
   TF1 * neutron_only = new TF1("neutron_only", double_exp,0,500,3); 
   neutron_only->SetTitle(use_hawley_06 ? "Fit to hawley'06" : "Fit to hawley'08 "); 
   neutron_only->SetLineColor(11); 
@@ -138,7 +154,9 @@ void firns(bool use_hawley_06 = false)
   mg->GetYaxis()->SetTitle("#rho (kg/m^{3})"); 
   mg->GetXaxis()->SetRangeUser(0,120); 
   mg->Fit(fit,""); 
+  mg->Fit(single_fit,""); 
   fit->Draw("lsame"); 
+  single_fit->Draw("lsame"); 
 
   (use_hawley_06 ? hawley_06 : hawley_neutron)->Fit(neutron_only,"N"); 
 //  neutron_only->Draw("lsame"); 
@@ -203,4 +221,16 @@ void firns(bool use_hawley_06 = false)
   fit->Print(); 
   c->SaveAs("firn_fits.pdf"); 
 
+  TGraph * alleySave = Alley->makeGraph(1500, 0, 500);
+  TGraph * hawleySave = Hawley->makeGraph(1500, 0, 500);
+
+  FILE * falley = fopen("sum1.dat","w"); 
+  FILE * fhawley = fopen("sum2.dat","w"); 
+  for (int i = 0 ; i < 1500; i++) 
+  {
+    fprintf(falley,"%f,%f\n", alleySave->GetX()[i], alleySave->GetY()[i]);
+    fprintf(fhawley,"%f,%f\n", hawleySave->GetX()[i], hawleySave->GetY()[i]);
+  }
+  fclose(falley);
+  fclose(fhawley);
 }
