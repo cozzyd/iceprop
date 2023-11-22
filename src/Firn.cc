@@ -102,6 +102,7 @@ double iceprop::DoubleExponentialDensityFirn::getDensity(double z) const
 double iceprop::ExponentialFirn::getDensity(double z) const 
 {
   if (z > 0) return 0; 
+  if (z < -max_depth) return rho_under; 
   return rho_surf+ (rho_deep - rho_surf) * ( 1 - exp(z/scale)); 
 }
 

@@ -91,14 +91,16 @@ namespace iceprop
   class ExponentialFirn : public Firn 
   {
     public:
-      ExponentialFirn(double scale_m, double surface_density, double deep_density = 917) 
-       : rho_surf(surface_density), scale(scale_m), rho_deep(deep_density) 
+      ExponentialFirn(double scale_m, double surface_density, double deep_density = 917, double max_z=2800, double n_under =2) 
+       : rho_surf(surface_density), scale(scale_m), rho_deep(deep_density) , max_depth(max_z), rho_under(n2rho(n_under))
       {}
     private: 
       virtual double getDensity(double z) const; 
       double rho_surf; 
       double scale; 
       double rho_deep; 
+      double max_depth; 
+      double rho_under; 
   }; 
 
   /** I'm sure Peter loves that this is named after him in the "literature" (https://icecube.wisc.edu/~mnewcomb/radio/#icedensity) */ 
