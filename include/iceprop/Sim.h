@@ -254,7 +254,7 @@ namespace iceprop
       std::vector<TimeDomainMeasurement> measurements; 
       std::vector<GlobalMaximum> maxima; 
       std::vector<GlobalIntegral> integrals; 
-      std::vector<StepOutput> outputs; 
+      std::vector<StepOutput*> outputs; 
       std::vector<TObject *> delete_list; 
       TGraph gsurf; 
 

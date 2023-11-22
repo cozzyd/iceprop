@@ -23,7 +23,7 @@
  *************************************************************************************/ 
 
 #include "iceprop.h"
-#include <map>
+#include <boost/container/flat_map.hpp>
 
 #include "TCanvas.h" 
 #include "TFile.h" 
@@ -33,6 +33,8 @@
 #include "TROOT.h" 
 #include <dirent.h> 
 #include "TSystem.h" 
+#include "TGraph2D.h" 
+#include "TChain.h" 
 #include <sys/types.h> 
 #include <unistd.h> 
 
@@ -143,11 +145,12 @@ iceprop::Sim::~Sim()
 
   for (size_t o = 0; o < outputs.size(); o++)
   {
-    if (outputs[o].t) 
+    if (outputs[o]->t) 
     {
-      outputs[o].outf->cd(); 
-      outputs[o].t->Write(); 
+      outputs[o]->outf->cd(); 
+      outputs[o]->t->Write(); 
     }
+    delete outputs[o]; 
   }
  
 
@@ -372,66 +375,91 @@ static int count_the_canvases = 0;
 void iceprop::Sim::addStepOutput(StepOutput o)
 {
 
-  outputs.push_back(o); 
-  StepOutput & out = outputs[outputs.size()-1]; 
+  StepOutput * out = new StepOutput(o); 
+  outputs.push_back(out); 
 
+  out->index = 0; 
   /* initialize stuff */ 
-  if (!out.cw) out.cw = geom->max_r*geom->resolution * 1.1; 
-  if (!out.ch) out.ch =(geom->max_depth + geom->sky_height)*geom->resolution * 1.1; 
+  if (!out->cw) out->cw = geom->max_r*geom->resolution * 1.1; 
+  if (!out->ch) out->ch =(geom->max_depth + geom->sky_height)*geom->resolution * 1.1; 
 
 
-  if (!out.output_prefix && mpi::am_master())
+  if (!out->output_prefix && mpi::am_master())
   {
-    out.output_prefix = get_output_prefix(out.what, out.type); 
+    out->output_prefix = get_output_prefix(out->what, out->type); 
   }
 
-  if (!out.c && ( out.format & (O_PNG | O_PDF))  && mpi::am_master())
+  if (!out->c && ( out->format & (O_PNG | O_PDF))  && mpi::am_master())
   {
     TString cname;
-    cname.Form("c%d_%s", count_the_canvases++, out.output_prefix); 
-    out.c = new TCanvas(cname.Data(), cname.Data(), out.cw, out.ch); 
-    delete_list.push_back(out.c); 
+    cname.Form("c%d_%s", count_the_canvases++, out->output_prefix); 
+    out->c = new TCanvas(cname.Data(), cname.Data(), out->cw, out->ch); 
+    delete_list.push_back(out->c); 
   }
 
-  if (!out.outf && (out.format & O_ROOT) && mpi::am_master()) 
+  TString newpath; 
+  bool found_old = false; 
+  if (!out->outf && (out->format & O_ROOT) && mpi::am_master()) 
   {
     TString path;
-    path.Form("%s/%s.root", out.out_dir, out.output_prefix); 
-    out.outf = new TFile(path.Data(),snapshot_loaded ? "UPDATE" : "RECREATE"); 
-    if (snapshot_loaded) 
+    path.Form("%s/%s.root", out->out_dir, out->output_prefix); 
+
+    // Since I can't get the TTree to update properly, I'll cheat and move the old file out of the way. 
+
+    if (!access(path.Data(),R_OK)) found_old = true; 
+    if (snapshot_loaded && found_old) 
     {
-      printf("Recover?!?\n"); 
-      out.outf->Recover(); //?? 
+      newpath.Form("%s/%s.%d.root", out->out_dir, out->output_prefix, pid); 
+      gSystem->Rename(path.Data(), newpath.Data()); 
     }
-    delete_list.push_back(out.outf); 
+    out->outf = new TFile(path.Data(),"RECREATE"); 
+    delete_list.push_back(out->outf); 
   }
 
   /* store a histogram to avoid constant reallocation */ 
-  if (out.format & (O_ROOT | O_PNG | O_PDF) && mpi::am_master()) 
+  if ((out->format & (O_ROOT | O_PNG | O_PDF)) && mpi::am_master()) 
   {
-    out.h = make_hist(out.output_prefix, out.output_prefix, geom, out.double_precision); 
-    delete_list.push_back(out.h); 
+    if (out->outf) out->outf->cd(); 
+
+    out->h =  make_hist(out->output_prefix, out->output_prefix, geom, out->double_precision); 
+
+    if (!out->outf) delete_list.push_back(out->h); 
   }
 
-  if (out.format & O_ROOT && mpi::am_master()) 
+  if ((out->format & O_ROOT) && mpi::am_master()) 
   {
-    out.outf->cd(); 
-    if(snapshot_loaded) 
+    out->outf->cd(); 
+    out->t =  new TTree(out->output_prefix,out->output_prefix);  
+
+    out->t->Branch("hist",out->h);   
+    out->t->Branch("pid",&pid);   
+    out->t->Branch("index",&out->index); 
+    out->t->Branch("step",&step);   
+ 
+    if (snapshot_loaded && found_old) //copy over the old stuff
     {
-     out.t = (TTree*) out.outf->Get(out.output_prefix);
-     out.t->SetBranchAddress("hist",out.h);  
-     out.t->SetBranchAddress("pid",&pid);  
-     out.t->SetBranchAddress("index",&out.index);  
-     out.t->SetBranchAddress("step",&f->t); 
-    }
-    else
-    {
-    out.t =  new TTree(out.output_prefix,out.output_prefix);  
-    out.t->SetDirectory(out.outf); 
-    out.t->Branch("hist",out.h);   
-    out.t->Branch("pid",&pid);   
-    out.t->Branch("index",&(out.index));   
-    out.t->Branch("step",&step);   
+      printf("Copying tree!\n"); 
+      int old_step = step; 
+      int old_pid = pid; 
+      int old_index = out->index; 
+
+      TFile old(newpath); 
+      TTree * ot = (TTree*) old.Get(out->output_prefix); 
+      ot->SetBranchAddress("hist",&out->h);   
+      ot->SetBranchAddress("pid",&pid);   
+      ot->SetBranchAddress("index",&out->index); 
+      ot->SetBranchAddress("step",&step);   
+
+      for (int i = 0; i < ot->GetEntries(); i++) 
+      {
+          ot->GetEntry(i); 
+          out->outf->cd(); 
+          out->t->Fill(); 
+      }
+
+      pid = old_pid; 
+      out->index = old_index; 
+      step = old_step; 
     }
   }
 
@@ -439,8 +467,9 @@ void iceprop::Sim::addStepOutput(StepOutput o)
 
   if (snapshot_loaded) 
   {
-    out.index = step < out.skip_offset ? 0 : (step-out.skip_offset) /out.skip_factor; 
+    out->index = step < out->skip_offset ? 0 : (step-out->skip_offset) /out->skip_factor; 
   } 
+  else out->index = 0; 
 
 
 
@@ -614,31 +643,31 @@ void iceprop::Sim::run(double time, bool relative)
     /** figure out what additional things we need to fully calculate at this step */ 
     for (int o = 0; o < outputs.size(); o++)
     {
-      if ( (step - outputs[o].skip_offset >= 0 )  && ( (step - outputs[o].skip_offset) % outputs[o].skip_factor) == 0)
+      if ( (step - outputs[o]->skip_offset >= 0 )  && ( (step - outputs[o]->skip_offset) % outputs[o]->skip_factor) == 0)
       {
-         outputs[o].index++; //we will have to subtract 1. Otherwise we have to loop over again and increment later. 
+         outputs[o]->index++; //we will have to subtract 1. Otherwise we have to loop over again and increment later. 
 
         /* Use meep's internals for hdf5 since I think it's smarter than we are and I don't want to
          * figure this stuff out. */
-        if (outputs[o].format & O_HDF5 ) 
+        if (outputs[o]->format & O_HDF5 ) 
         {
           TString path; 
-          path.Form("%s/%s-%d.h5", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
+          path.Form("%s/%s-%d.h5", outputs[o]->out_dir, outputs[o]->output_prefix, outputs[o]->index-1); 
           meep::h5file h5(path.Data(),meep::h5file::WRITE); 
 
-          f->output_hdf5( get_output_prefix(outputs[o].what, outputs[o].type),
-                         1, &(outputs[o].what), &meep_scalar_function, (void*) &(outputs[o].type),
+          f->output_hdf5( get_output_prefix(outputs[o]->what, outputs[o]->type),
+                         1, &(outputs[o]->what), &meep_scalar_function, (void*) &(outputs[o]->type),
                          gv.surroundings(), 
-                         &h5, false, !outputs[o].double_precision);
+                         &h5, false, !outputs[o]->double_precision);
         }
 
 
         //we only need to calculate it if we need it for something other than O_HDF5 
 
-        if ( (outputs[o].format & ( O_PNG | O_PDF | O_ROOT )) &&  ! am_i_calculated[outputs[o].what])
+        if ( (outputs[o]->format & ( O_PNG | O_PDF | O_ROOT )) &&  ! am_i_calculated[outputs[o]->what])
         {
-          need_to_calculate.push_back(outputs[o].what); 
-          am_i_calculated[outputs[o].what] = true; 
+          need_to_calculate.push_back(outputs[o]->what); 
+          am_i_calculated[outputs[o]->what] = true; 
         }
       }
     }
@@ -692,41 +721,41 @@ void iceprop::Sim::run(double time, bool relative)
       if (!mpi::am_master()) break; 
 
       //not this step 
-      if ( ! ((step - outputs[o].skip_offset >= 0 )  && ( (step - outputs[o].skip_offset) % outputs[o].skip_factor) == 0)) 
+      if ( ! ((step - outputs[o]->skip_offset >= 0 )  && ( (step - outputs[o]->skip_offset) % outputs[o]->skip_factor) == 0)) 
         continue; 
 
       // only hdf5
-      if ( ! (outputs[o].format & (O_PDF | O_PNG | O_ROOT)))
+      if ( ! (outputs[o]->format & (O_PDF | O_PNG | O_ROOT)))
         continue; 
 
       //fill the histogram 
-      store[outputs[o].what]->updateHist(outputs[o].h, outputs[o].type); 
+      store[outputs[o]->what]->updateHist(outputs[o]->h, outputs[o]->type); 
 
-      if (outputs[o].output_scale)
+      if (outputs[o]->output_scale)
       {
-        outputs[o].h->SetMaximum(outputs[o].output_scale); 
-        outputs[o].h->SetMinimum(-outputs[o].output_scale); 
+        outputs[o]->h->SetMaximum(outputs[o]->output_scale); 
+        outputs[o]->h->SetMinimum(-outputs[o]->output_scale); 
       }
 
       //change the title to what it is and when it is 
-      if (outputs[o].format & (O_PNG | O_PDF | O_ROOT) ) 
+      if (outputs[o]->format & (O_PNG | O_PDF | O_ROOT) ) 
       {
         TString titl; 
-        titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o].what,outputs[o].type), 
-                                                  getCurrentTime(), step, outputs[o].index-1); 
+        titl.Form("%s (t=%g, step=%d, index=%d)", get_output_prefix(outputs[o]->what,outputs[o]->type), 
+                                                  getCurrentTime(), step, outputs[o]->index-1); 
       
-        outputs[o].h->SetTitle(titl.Data()); 
+        outputs[o]->h->SetTitle(titl.Data()); 
 
       }
  
-      if (outputs[o].format & (O_PNG | O_PDF ) ) 
+      if (outputs[o]->format & (O_PNG | O_PDF ) ) 
       {
 
-        outputs[o].c->cd(); 
+        outputs[o]->c->cd(); 
 
 
 
-        outputs[o].h->Draw("colz"); 
+        outputs[o]->h->Draw("colz"); 
 
         /** add a line for the surface. We can do something smarter later probably */ 
         gsurf.Draw("lsame"); 
@@ -734,27 +763,33 @@ void iceprop::Sim::run(double time, bool relative)
 
         TString path;  
 
-        if (outputs[o].format & O_PNG) 
+        if (outputs[o]->format & O_PNG) 
         {
-          path.Form("%s/%s.%d.png", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
-          outputs[o].c->SaveAs(path); 
+          path.Form("%s/%s.%d.png", outputs[o]->out_dir, outputs[o]->output_prefix, outputs[o]->index-1); 
+          outputs[o]->c->SaveAs(path); 
         }
 
-        if (outputs[o].format & O_PDF) 
+        if (outputs[o]->format & O_PDF) 
         {
-          path.Form("%s/%s.%d.pdf", outputs[o].out_dir, outputs[o].output_prefix, outputs[o].index-1); 
-          outputs[o].c->SaveAs(path); 
+          path.Form("%s/%s.%d.pdf", outputs[o]->out_dir, outputs[o]->output_prefix, outputs[o]->index-1); 
+          outputs[o]->c->SaveAs(path); 
         }
       }
 
-      if (outputs[o].format & O_ROOT)  
+      if (outputs[o]->format & O_ROOT)  
       {
+       
         // this is cargo culting at this point for me, so I don't know if this is necessary or not 
-        outputs[o].outf->cd(); 
-        outputs[o].index--; 
-        outputs[o].t->Fill(); 
-        outputs[o].index++; 
+       
+//        bool hist_status = TH1::AddDirectoryStatus(); 
+//        TH1::AddDirectory(false); 
+        
+        outputs[o]->outf->cd(); 
+        outputs[o]->index--; 
+        outputs[o]->t->Fill(); 
+        outputs[o]->index++; 
         gROOT->cd(); 
+ //       TH1::AddDirectory(hist_status); 
       }
     }
           
@@ -880,8 +915,60 @@ static int getNewestSnapshotIndex(const char * path)
 
 
 
-static meep::component cyl_components[] = {meep::Er, meep::Ez, meep::Ep, meep::Hr, meep::Hz, meep::Hp}; 
+static meep::component cyl_components[] = {meep::Dr, meep::Dz, meep::Dp,meep::Br, meep::Bz, meep::Bp}; 
 static meep::component twod_components[] = {meep::Ex, meep::Ey, meep::Ez, meep::Hz, meep::Hy, meep::Hz}; 
+
+struct chunk_data
+{
+  bool is_cylindrical; 
+}; 
+
+static void chunk_output_tree(meep::fields* f, chunk_data *data) 
+{
+  chunk_data * cd = (chunk_data*) data; 
+
+  int nfields = cd->is_cylindrical ? sizeof(cyl_components)/ sizeof(*cyl_components)
+                                    : sizeof(twod_components)/ sizeof(*twod_components); 
+  const meep::component * components = cd->is_cylindrical ? cyl_components : twod_components; 
+           
+  for (int ifield = 0; ifield < nfields; ifield++) 
+  {
+    meep::component c = components[ifield]; 
+
+    TTree * t = new TTree( get_meep_component_name(c), get_meep_component_name(c)); 
+    t->SetAutoSave(0); 
+    t->SetAutoFlush(0); 
+    double val[2]; 
+    double x[2]; 
+
+    t->Branch("val_real",val); 
+    t->Branch("val_imag",val+1); 
+    t->Branch(cd->is_cylindrical ? "r" : "x" ,x); 
+    t->Branch(cd->is_cylindrical ? "z" : "y" ,x+1); 
+
+    using namespace meep;
+    for (int ichunk=0; ichunk < f->num_chunks; ichunk++)
+    {
+      meep::fields_chunk * chunk = f->chunks[ichunk]; 
+      if (!chunk->f[c][0])
+      {
+          printf("No %s in chunk %d\n", get_meep_component_name(c), ichunk); 
+          break; 
+      }
+ 
+      LOOP_OVER_VOL(chunk->gv, c, i)
+      {
+        IVEC_LOOP_LOC(chunk->gv,here); 
+        x[0] = cd->is_cylindrical ? here.r() : here.x(); 
+        x[1] = cd->is_cylindrical ? here.z() : here.y(); 
+        val[0] = chunk->f[c][0][i]; 
+        val[1] = chunk->f[c][1][i]; 
+        t->Fill(); 
+      }
+      t->Write(0, TObject::kOverwrite); 
+    }
+  }
+}
 
 int iceprop::Sim::snapshot(const char * path, int i) 
 {
@@ -908,7 +995,7 @@ int iceprop::Sim::snapshot(const char * path, int i)
    gSystem->mkdir(str.Data(),true); 
 
     //save the current simulation time
-    //this could be saved in the HDF5 file, but it's nice to have it more easily human readable
+    //this could be saved more smartlyfile, but it's nice to have it more easily human readable
     str.Form("%s/" snapshot_index_format"/time",path,i); 
     FILE * fi = fopen(str.Data(),"w"); 
     fprintf(fi,"step: %d\n", step); 
@@ -916,48 +1003,80 @@ int iceprop::Sim::snapshot(const char * path, int i)
     fprintf(fi,"do not edit this file if you don't know what you're doing... the parser is stupid\n"); 
     fclose(fi); 
 
-    //save the output indices. Thes will get reloaded (assuming the same outputs are set up AND 
-    //add
   }
 
   //now we save the fields 
-  str.Form("%s/" snapshot_index_format "/fields.h5",path,i); 
-  TString h5path = str; 
-  {
-    meep::h5file h5(str.Data(), meep::h5file::WRITE); 
-
-    int nfields = geom->is_cylindrical ? sizeof(cyl_components)/ sizeof(*cyl_components)
+  
+  int nfields = geom->is_cylindrical ? sizeof(cyl_components)/ sizeof(*cyl_components)
                                     : sizeof(twod_components)/ sizeof(*twod_components); 
-    const meep::component * components = geom->is_cylindrical ? cyl_components : twod_components; 
-    
+  const meep::component * components = geom->is_cylindrical ? cyl_components : twod_components; 
+ 
+  mpi::barrier(); 
+
+  str.Form("%s/" snapshot_index_format "/fields%d.root",path,i, mpi::rank()); 
+  //we will write this in the most inefficient form possible :) 
+  {
+    TFile fi(str.Data(),"CREATE"); 
+
     for (int ifield = 0; ifield < nfields; ifield++) 
     {
-      ScalarType t = Real; 
-      str.Form("%s_%s",get_meep_component_name(components[ifield]), get_scalar_name(t)); 
-      f->output_hdf5(str.Data(), 1, components+ifield, meep_scalar_function, &t, gv.surroundings(), &h5); 
-      t = Imag;
-      str.Form("%s_%s",get_meep_component_name(components[ifield]), get_scalar_name(t)); 
-      f->output_hdf5(str.Data(), 1, components+ifield, meep_scalar_function, &t, gv.surroundings(), &h5); 
+      meep::component c = components[ifield]; 
+
+      TTree * t = new TTree( get_meep_component_name(c), get_meep_component_name(c)); 
+      t->SetAutoSave(0); 
+      t->SetAutoFlush(0); 
+      double val[2]; 
+      double x[2]; 
+
+      t->Branch("val_real",val); 
+      t->Branch("val_imag",val+1); 
+      t->Branch(geom->is_cylindrical ? "r" : "x" ,x); 
+      t->Branch(geom->is_cylindrical ? "z" : "y" ,x+1); 
+
+      using namespace meep;
+      for (int ichunk=0; ichunk < f->num_chunks; ichunk++)
+      {
+        meep::fields_chunk * chunk = f->chunks[ichunk]; 
+        if (!chunk->f[c][0])
+        {
+//            printf("No %s in chunk %d\n", get_meep_component_name(c), ichunk); 
+            continue; 
+        }
+   
+        LOOP_OVER_VOL(chunk->gv, c, i)
+        {
+          IVEC_LOOP_LOC(chunk->gv,here); 
+          x[0] = geom->is_cylindrical ? here.r() : here.x(); 
+          x[1] = geom->is_cylindrical ? here.z() : here.y(); 
+          val[0] = chunk->f[c][0][i]; 
+          val[1] = chunk->f[c][1][i]; 
+          t->Fill(); 
+        }
+
+//        t->BuildIndex( geom->is_cylindrical ? " int(r * 1000)" : "int(x * 1000)" , 
+//                       geom->is_cylindrical ? " int(z * 1000)" : "int(y * 1000)"  ); 
+        t->Write(0, TObject::kOverwrite); 
+      }
     }
   }
 
+  TString cmd; 
+  cmd.Form("gzip %s", str.Data()); 
+  system(cmd.Data()); 
+
+
   if (mpi::am_master()) 
   {
-    //compress the file since they're gigantic 
-    TString cmd("gzip ");
-    cmd+= h5path; 
-    cmd += " &"; 
-    system(cmd.Data()); 
-
+    //flush the outputs tree 
     for (size_t o =0; o< outputs.size(); o++) 
     {
-      if (outputs[o].format & O_ROOT)
+      if (outputs[o]->format & O_ROOT)
       {
-        printf("Flushing %s\n", outputs[o].outf->GetName()); 
-        outputs[o].outf->cd(); 
-        outputs[o].t->FlushBaskets(); 
-        outputs[o].t->AutoSave(); 
-        outputs[o].outf->SaveSelf(); 
+        printf("Flushing %s\n", outputs[o]->outf->GetName()); 
+        outputs[o]->outf->cd(); 
+        outputs[o]->t->FlushBaskets(); 
+        outputs[o]->t->AutoSave(); 
+        outputs[o]->outf->SaveSelf(); 
         gROOT->cd(); 
       }
     }
@@ -972,42 +1091,19 @@ int iceprop::Sim::snapshot(const char * path, int i)
       TGraph * gi = getMeasurements()[m].makeGraph(Imag); 
       gr->Write(); 
       gi->Write(); 
+      delete gr; 
+      delete gi; 
     }
   }
+  return 0; 
 }
 
+static bool comp( const std::pair<std::pair<double,double>, std::complex<double> > & a, 
+                    const std::pair<std::pair<double,double>, std::complex<double> > & b) 
+                {
+                  return a.first < b.first; 
+                }; 
 
-struct stored_field_data 
-{
-  meep::realnum * re; 
-  meep::realnum * im; 
-  int dim[2]; //seems to be stored backwards, at least for cylindrical; 
-  int res; 
-  bool is_cyl; 
-
-  std::complex<double> interp(double x, double y) 
-  {
-    int ly = y*res; 
-    int lx = x*res; 
-    int ux = lx+1;
-    int uy = ly+1; 
-
-
-    double fx = (x*res-lx);
-    double fy = (y*res-ly); 
-
-    int xwidth = dim[1]; 
-    int ywidth = dim[0]; 
-
-//    assert (ux+uy*xwidth < dim[0] * dim[1]); 
-    std::complex<double> q00 = std::complex<double>(re[lx + ly*xwidth], im[lx+ly*xwidth]);
-    std::complex<double> q01 = uy < ywidth ?  std::complex<double>(re[lx + uy*xwidth], im[lx+uy*xwidth]) : 0;
-    std::complex<double> q10 = ux < xwidth ? std::complex<double>(re[ux + ly*xwidth], im[ux+ly*xwidth]) : 0;
-    std::complex<double> q11 = ux < xwidth && uy < ywidth ? std::complex<double>(re[ux + uy*xwidth], im[ux+uy*xwidth]) : 0 ;
-
-    return q00 * (1-fx) * (1-fy) + q10 * fx * (1-fy) + q01 * (1-fx) * fy + q11 * fx * fy;  
-  }
-}; 
 
 int iceprop::Sim::loadSnapshot(const char * path, int i) 
 {
@@ -1045,97 +1141,163 @@ int iceprop::Sim::loadSnapshot(const char * path, int i)
 //  fscanf(fi,"t_ns: %lg", &time_offset); 
   fclose(fi); 
 
-  //now we laod the fields 
-  str.Form("%s/" snapshot_index_format "/fields.h5",path,i); 
-
-  TString fields_file = str; 
   TString cmd; 
-  if (mpi::am_master()) 
+  if (mpi::am_master())
   {
-    cmd.Form("gunzip -c %s.gz > %s", str.Data(), str.Data()); 
+    printf("LOADING SNAPSHOT FROM %s\n", path); 
+    cmd.Form("cd  %s/" snapshot_index_format "; for i in *.root.gz; do echo ${i} ->${i%%.gz};  gunzip -c ${i} > ${i%%.gz}; done", path,i); 
+    printf("%s\n", cmd.Data()); 
     system(cmd.Data()); 
   }
 
+
   mpi::barrier(); 
 
+  //now we load the fields 
   {
-
-    meep::h5file h5(str.Data(), meep::h5file::READONLY,false); 
-
-    if (!h5.ok()) 
-    {
-      fprintf(stderr,"Problem reading %s\n", str.Data()); 
-      return 1; 
-    }
-
-
-    int real_rank, im_rank, real_dims[3], im_dims[3]; 
-
-    
 
     int nfields = geom->is_cylindrical ? sizeof(cyl_components)/ sizeof(*cyl_components)
                                        : sizeof(twod_components)/ sizeof(*twod_components); 
     
     const meep::component * components = geom->is_cylindrical ? cyl_components : twod_components; 
 
-    //hackhackhackhackhackhack 
-    static stored_field_data sfd; 
-
+    //this is probably super super super slow. Oh well. 
     for (int ifield = 0; ifield < nfields; ifield++) 
     {
 
-      ScalarType ty = Real;
-      str.Form("%s_%s",get_meep_component_name(components[ifield]), get_scalar_name(ty)); 
-      meep::realnum * rdata = h5.read(str.Data(), &real_rank, real_dims, 3); 
-      ty = Imag;
+      // this will have min,max x0, min,max x1 to a file name
+      static std::vector<std::pair<std::array<double,4>, TString> > _tree_map; 
 
-      if (!rdata)
+      _tree_map.clear(); 
+
+      //loop over all the trees 
+      int ich = 0; 
+      while(true) 
       {
-        fprintf(stderr,"Problem reading data from %s\n", str.Data()); 
-        return 1; 
+        str.Form("%s/" snapshot_index_format "/fields%d.root",path,i,ich); 
+
+        if (access(str.Data(),W_OK)) break; // we are out of files! 
+
+        std::array<double,4>  X;
+
+
+        if (mpi::am_master()) 
+        {
+
+          //TODO: this would go substantially faster if each process took care of a tree, but that's a bit more complicated 
+          TFile ft(str,mpi::am_master ? "UPDATE" : "READ"); 
+          TTree * tr = (TTree*) ft.Get(get_meep_component_name(components[ifield])); 
+          X[0] = tr->GetMinimum(geom->is_cylindrical ? "r" : "x"); 
+          X[1] = tr->GetMaximum(geom->is_cylindrical ? "r" : "x"); 
+          X[2] = tr->GetMinimum(geom->is_cylindrical ? "z" : "y"); 
+          X[3] = tr->GetMaximum(geom->is_cylindrical ? "z" : "y"); 
+
+          printf("%s %s %d  %d %g %g %g %g\n", str.Data(),get_meep_component_name(components[ifield]),ich, tr->GetEntries(),  X[0], X[1], X[2], X[3] ); 
+          if (!tr->GetTreeIndex()) 
+          {
+            printf("BUILDING INDEX FOR %s in  %s\n", get_meep_component_name(components[ifield]),str.Data()); 
+            tr->BuildIndex( geom->is_cylindrical ? " int(r * 1000)" : "int(x * 1000)" , 
+                            geom->is_cylindrical ? " int(z * 1000)" : "int(y * 1000)"  ); 
+
+            tr->Write(); 
+
+          }
+        }
+
+        mpi::broadcast(&X[0], 4); 
+        _tree_map.push_back(std::pair<std::array<double,4>, TString> (X, str)); 
+        ich++; 
       }
 
 
-      str.Form("%s_%s",get_meep_component_name(components[ifield]), get_scalar_name(ty)); 
-      meep::realnum * idata = h5.read(str.Data(), &im_rank, im_dims, 3); 
 
-      if (real_rank!= 2 || im_rank !=2 || real_dims[0] != im_dims[0] || real_dims[1] != im_dims[1] ) 
-      {
-        fprintf(stderr,"Something makes no sense!\n"); 
-        return 1; 
-      }
+      double val[2]; 
+      double x[2]; 
+
+      static bool _is_cyl; 
+      static meep::component _c; 
+      _c = components[ifield]; 
+
+      _is_cyl = geom->is_cylindrical; 
+
+      static TFile * _cur_file = 0; 
+      static TTree * _cur_tree = 0; 
+      static double  _vreal = 0; 
+      static double  _vimag = 0; 
+      static double  _x0 = 0; 
+      static double  _x1 = 0; 
+      static double _cur_min0 =0; 
+      static double _cur_min1 =0; 
+      static double _cur_max0 =0; 
+      static double _cur_max1 =0; 
 
 
 
-      sfd.is_cyl = geom->is_cylindrical; 
-      sfd.im = idata; 
-      sfd.re = rdata; 
-      sfd.dim[0] = real_dims[0]; 
-      sfd.dim[1] = real_dims[1]; 
-      sfd.res = geom->resolution; 
-
-
-      if (mpi::am_master()) printf("Trying to initialize %s, dim[0]=%d, dim[1]=%d\n", get_meep_component_name(components[ifield]), real_dims[0], real_dims[1]); 
       f->initialize_field(components[ifield], 
            [] (const meep::vec & v) -> std::complex<double> 
            {
-              double x = sfd.is_cyl ? v.r() : v.x(); 
-              double z = v.z(); 
-              return  sfd.interp(x,z); 
+
+              
+              double x0 = _is_cyl ? v.r() : v.x(); 
+              double x1 = _is_cyl ? v.z() : v.y(); 
+
+              if (!_cur_file || x0 < _cur_min0 || x0 > _cur_max0 || x1 < _cur_min1 || x1 > _cur_max1)
+              {
+                for (auto it : _tree_map) 
+                {
+                  std::array<double,4> X = it.first; 
+
+                  if ( x0 >= X[0] && x0 <= X[1] && x1 >= X[2] && x1<=X[3])
+                  {
+                    _cur_min0 = X[0]; 
+                    _cur_min1 = X[2]; 
+                    _cur_max0 = X[1]; 
+                    _cur_max1 = X[3]; 
+                    if (_cur_file) delete _cur_file; 
+
+                    // do this one process at a time otherwise it's too slow
+                    for (int rank = 0; rank < mpi::max_rank(); rank++) 
+                    {
+                      if (mpi::rank() == rank) 
+                      {
+                        printf("Rank %d switching to file %s\n", rank, it.second.Data()); 
+                        _cur_file = new TFile(it.second.Data()); 
+                        _cur_tree = (TTree*) _cur_file->Get(get_meep_component_name(_c)); 
+                      }
+                    }
+
+                    _cur_tree->SetBranchAddress(_is_cyl ? "r" : "x", &_x0); 
+                    _cur_tree->SetBranchAddress(_is_cyl ? "z" : "y", &_x1); 
+                    _cur_tree->SetBranchAddress("val_real",&_vreal); 
+                    _cur_tree->SetBranchAddress("val_imag",&_vimag); 
+                  }
+                }
+              }
+      
+              _cur_tree->GetEntryWithIndex((int) (x0*1000), (int) (x1*1000)); 
+
+              if (x0!= _x0 || x1!=_x1) printf("uh oh!!: %g %g %g %g\n", x0,_x0,x1,_x1);  
+
+              return std::complex<double> (_vreal,_vimag); 
+
            }); 
 
-      delete[] rdata; 
-      delete[] idata; 
+
+      delete _cur_file; 
+      _cur_file = 0; 
+
     }
 
   }
 
-  if (mpi::am_master()) 
+  loaded_measurements_path.Form("%s/" snapshot_index_format "/measurements.root",path,i); 
+
+  if (mpi::am_master())
   {
-    cmd.Form("rm -f %s", fields_file.Data()); 
+   cmd.Form("rm %s/" snapshot_index_format "/fields*.root", path,i); 
+   system(cmd.Data()); 
   }
 
-  loaded_measurements_path.Form("%s/" snapshot_index_format "/measurements.root",path,i); 
 
   snapshot_loaded = true; 
 //  snapshot(path); //to compare

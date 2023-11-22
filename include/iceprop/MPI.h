@@ -40,20 +40,34 @@ namespace iceprop
 #ifdef ENABLE_MPI
     inline bool enabled() { return true; } 
 
-    inline bool am_master() 
+    inline int rank() 
     { 
       int rank; 
       MPI_Comm_rank(MPI_COMM_WORLD,&rank); 
-      return rank ==0 ; 
+
+      return rank ; 
     }
+    inline int max_rank() 
+    {
+      int size; 
+      MPI_Comm_size(MPI_COMM_WORLD,&size); 
+      return size; 
+    }
+
+    inline int am_master() { return rank() == 0; } 
 
     inline int barrier() { return MPI_Barrier(MPI_COMM_WORLD); } 
     inline void abort(int code) { MPI_Abort(MPI_COMM_WORLD, code); } 
 
+    inline int broadcast(double * data, int N) { return MPI_Bcast(data, N, MPI_DOUBLE, 0, MPI_COMM_WORLD); }
+
 #else
     inline bool enabled() { return false; }
     inline bool am_master() { return true; }
+    int broadcast(double * data, int N) { return 0; }  
     inline int barrier() { return 0; }
+    inline int rank() { return 0; } 
+    inline int max_rank() { return 1; } 
     inline void abort(int code) { exit(code); }
 #endif
 
