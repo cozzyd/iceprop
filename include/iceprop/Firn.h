@@ -31,6 +31,8 @@ class TSpline3;
 namespace iceprop
 {
 
+  const double k = 0.845*1e-3; 
+
   /**
    *  The Firn class encompasses the ice properties. 
    *  All that matters for us right now is the index of refraction, but usually that is derived from the density. 
@@ -69,6 +71,19 @@ namespace iceprop
        *   DensityTableFirn file
        **/ 
       static Firn * getFirn(const char * key); 
+
+
+      static double rho2n(double rho) 
+      {
+        return 1 + k * rho; 
+
+      }
+
+      static double n2rho(double n) 
+      {
+        return (n-1)/k; 
+      }
+
       virtual ~Firn() { ; } 
   }; 
 

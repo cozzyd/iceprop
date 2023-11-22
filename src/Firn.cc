@@ -28,17 +28,17 @@
 #include <stdio.h> 
 #include <string.h> 
 #include "TAxis.h" 
-#include "TSpline.h" 
 #include "TMath.h" 
+#include "Math/Interpolator.h" 
+#include "Math/InterpolationTypes.h" 
 
 
 static iceprop::ArthernFirn arthern;
 
-const double k = 0.845*1e-3; 
 
 double iceprop::Firn::getIndexOfRefraction(double z) const 
 {
-  return 1. + k * getDensity(z); 
+  return rho2n(getDensity(z)); 
 }
 
 double iceprop::Firn::eps(double z) const 
